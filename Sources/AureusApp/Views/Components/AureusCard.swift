@@ -41,7 +41,7 @@ struct SectionCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(WorthlineTheme.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 8)
+            .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 10)
     }
 }
 
@@ -68,9 +68,16 @@ struct SectionHeader: View {
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.callout.weight(.medium))
+                    .font(.caption.weight(.semibold))
                     .buttonStyle(.plain)
-                    .foregroundStyle(WorthlineTheme.accent)
+                    .foregroundStyle(WorthlineTheme.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(WorthlineTheme.border, lineWidth: 0.8)
+                    }
             }
         }
     }
@@ -168,16 +175,19 @@ struct TimeRangePicker: View {
                     Text(range.rawValue)
                         .font(.caption2.weight(.semibold))
                         .monospacedDigit()
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(selection == range ? WorthlineTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .foregroundStyle(selection == range ? .white : WorthlineTheme.textSecondary)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 7)
+                        .background(selection == range ? Color.white.opacity(0.16) : Color.secondary.opacity(0.11), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(selection == range ? Color.white.opacity(0.45) : Color.clear, lineWidth: 0.8)
+                        }
+                        .foregroundStyle(selection == range ? WorthlineTheme.textPrimary : WorthlineTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(3)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(2)
     }
 }
 
@@ -198,8 +208,12 @@ struct FilterPills<Option: Hashable, Label: View>: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
-                        .background(selection == option ? WorthlineTheme.accent : Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .foregroundStyle(selection == option ? .white : WorthlineTheme.textSecondary)
+                        .background(selection == option ? Color.white.opacity(0.16) : Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(selection == option ? Color.white.opacity(0.40) : Color.clear, lineWidth: 0.8)
+                        }
+                        .foregroundStyle(selection == option ? WorthlineTheme.textPrimary : WorthlineTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -258,9 +272,9 @@ struct PrimaryButton: View {
             .frame(minHeight: 34)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.white)
-        .background(WorthlineTheme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(color: WorthlineTheme.accent.opacity(0.20), radius: 8, y: 4)
+        .foregroundStyle(Color(nsColor: .windowBackgroundColor))
+        .background(Color.primary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .shadow(color: .black.opacity(0.20), radius: 10, y: 5)
     }
 }
 
@@ -285,7 +299,7 @@ struct SecondaryButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(WorthlineTheme.textPrimary)
-        .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(WorthlineTheme.border, lineWidth: 0.8)

@@ -26,6 +26,7 @@ struct HoldingBackup: Codable {
     var sector: String?
     var industry: String?
     var dividendYield: Double?
+    var earningsDate: String?
     var website: String?
     var logoURL: String?
     var exchangeName: String?
@@ -51,6 +52,7 @@ struct HoldingBackup: Codable {
         sector = holding.sector
         industry = holding.industry
         dividendYield = holding.dividendYield
+        earningsDate = holding.earningsDate
         website = holding.website
         logoURL = holding.logoURL
         exchangeName = holding.exchangeName
@@ -78,6 +80,7 @@ struct HoldingBackup: Codable {
             sector: sector,
             industry: industry,
             dividendYield: dividendYield,
+            earningsDate: earningsDate,
             website: website,
             logoURL: logoURL,
             exchangeName: exchangeName,

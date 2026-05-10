@@ -2,32 +2,34 @@ import AppKit
 import SwiftUI
 
 enum WorthlineTheme {
-    static let accent = Color(red: 0.04, green: 0.45, blue: 0.54)
-    static let accentStrong = Color(red: 0.02, green: 0.35, blue: 0.42)
-    static let accentSoft = Color(red: 0.04, green: 0.45, blue: 0.54).opacity(0.13)
-    static let positive = Color(red: 0.05, green: 0.58, blue: 0.36)
-    static let negative = Color(red: 0.86, green: 0.19, blue: 0.24)
-    static let warning = Color(red: 0.88, green: 0.50, blue: 0.08)
+    static let accent = Color(red: 0.12, green: 0.78, blue: 0.50)
+    static let accentStrong = Color(red: 0.08, green: 0.58, blue: 0.38)
+    static let accentSoft = Color(red: 0.12, green: 0.78, blue: 0.50).opacity(0.14)
+    static let positive = Color(red: 0.12, green: 0.78, blue: 0.50)
+    static let negative = Color(red: 0.95, green: 0.25, blue: 0.32)
+    static let warning = Color(red: 0.96, green: 0.68, blue: 0.17)
 
     static let background = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDarkMode ? NSColor(red: 0.012, green: 0.014, blue: 0.017, alpha: 1) : NSColor(red: 0.957, green: 0.960, blue: 0.952, alpha: 1)
+        appearance.isDarkMode ? NSColor(red: 0.035, green: 0.039, blue: 0.041, alpha: 1) : NSColor(red: 0.957, green: 0.960, blue: 0.952, alpha: 1)
     })
 
     static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDarkMode ? NSColor(red: 0.040, green: 0.044, blue: 0.050, alpha: 1) : NSColor.white.withAlphaComponent(0.94)
+        appearance.isDarkMode ? NSColor(red: 0.085, green: 0.095, blue: 0.098, alpha: 1) : NSColor.white.withAlphaComponent(0.96)
     })
 
     static let sidebarBackground = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDarkMode ? NSColor(red: 0.022, green: 0.026, blue: 0.031, alpha: 1) : NSColor(red: 0.920, green: 0.932, blue: 0.925, alpha: 1)
+        appearance.isDarkMode ? NSColor(red: 0.105, green: 0.105, blue: 0.112, alpha: 1) : NSColor(red: 0.920, green: 0.932, blue: 0.925, alpha: 1)
     })
 
     static let fieldBackground = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDarkMode ? NSColor(red: 0.060, green: 0.066, blue: 0.075, alpha: 1) : NSColor(red: 0.982, green: 0.984, blue: 0.978, alpha: 1)
+        appearance.isDarkMode ? NSColor(red: 0.125, green: 0.132, blue: 0.135, alpha: 1) : NSColor(red: 0.982, green: 0.984, blue: 0.978, alpha: 1)
     })
 
     static let textPrimary = Color.primary
     static let textSecondary = Color.secondary
-    static let border = Color(nsColor: .separatorColor).opacity(0.38)
+    static let border = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.isDarkMode ? NSColor(red: 0.20, green: 0.22, blue: 0.22, alpha: 1) : NSColor.separatorColor
+    }).opacity(0.70)
 }
 
 private extension NSAppearance {

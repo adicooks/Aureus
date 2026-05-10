@@ -17,6 +17,7 @@ struct MarketAssetProfile: Codable, Equatable {
     let sector: String?
     let industry: String?
     let dividendYield: Double?
+    let earningsDate: String?
     let website: String?
     let logoURL: String?
     let currency: String?
@@ -114,6 +115,7 @@ struct YahooFinanceService {
                 sector: summary?.sector,
                 industry: summary?.industry,
                 dividendYield: summary?.dividendYield,
+                earningsDate: info?.earningsDate,
                 website: website,
                 logoURL: tickerLogoURL(for: website),
                 currency: nil,
@@ -192,6 +194,7 @@ struct YahooFinanceService {
                 sector: result.assetProfile?.sector,
                 industry: result.assetProfile?.industry,
                 dividendYield: result.summaryDetail?.dividendYield?.raw,
+                earningsDate: nil,
                 website: website,
                 logoURL: tickerLogoURL(for: website),
                 currency: result.price?.currency,
@@ -240,7 +243,8 @@ struct YahooFinanceService {
         return NasdaqInfo(
             symbol: data.symbol.uppercased(),
             companyName: data.companyName,
-            exchangeName: data.exchange
+            exchangeName: data.exchange,
+            earningsDate: extractEarningsDate(from: data.notifications)
         )
     }
 
@@ -323,6 +327,23 @@ struct YahooFinanceService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let percent = Double(cleaned) else { return nil }
         return percent / 100
+    }
+
+    private func extractEarningsDate(from notifications: [NasdaqInfoResponse.Notification]?) -> String? {
+        let messages = notifications?
+            .flatMap(\.eventTypes)
+            .filter {
+                [$0.eventName, $0.message].contains { value in
+                    value?.localizedCaseInsensitiveContains("earnings") == true
+                }
+            }
+            .compactMap(\.message) ?? []
+
+        guard let message = messages.first else { return nil }
+        if let dateText = message.components(separatedBy: ":").last.map(usableValue), let dateText {
+            return dateText
+        }
+        return usableValue(message)
     }
 }
 
@@ -413,6 +434,7 @@ private struct NasdaqInfo {
     let symbol: String
     let companyName: String?
     let exchangeName: String?
+    let earningsDate: String?
 }
 
 private struct NasdaqSummaryResponse: Decodable {
@@ -448,6 +470,16 @@ private struct NasdaqInfoResponse: Decodable {
         let symbol: String
         let companyName: String?
         let exchange: String?
+        let notifications: [Notification]?
+    }
+
+    struct Notification: Decodable {
+        let eventTypes: [EventType]
+    }
+
+    struct EventType: Decodable {
+        let message: String?
+        let eventName: String?
     }
 }
 

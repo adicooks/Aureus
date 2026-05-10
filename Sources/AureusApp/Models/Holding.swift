@@ -23,6 +23,7 @@ final class Holding {
     var sector: String?
     var industry: String?
     var dividendYield: Double?
+    var earningsDate: String?
     var website: String?
     var logoURL: String?
     var exchangeName: String?
@@ -58,6 +59,7 @@ final class Holding {
         sector: String? = nil,
         industry: String? = nil,
         dividendYield: Double? = nil,
+        earningsDate: String? = nil,
         website: String? = nil,
         logoURL: String? = nil,
         exchangeName: String? = nil,
@@ -86,6 +88,7 @@ final class Holding {
         self.sector = sector
         self.industry = industry
         self.dividendYield = dividendYield
+        self.earningsDate = earningsDate
         self.website = website
         self.logoURL = logoURL
         self.exchangeName = exchangeName
@@ -169,6 +172,7 @@ final class Holding {
         sector = profile.sector
         industry = profile.industry
         dividendYield = profile.dividendYield
+        earningsDate = profile.earningsDate
         website = profile.website
         logoURL = profile.logoURL
         exchangeName = profile.exchangeName ?? exchangeName

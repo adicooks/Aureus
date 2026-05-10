@@ -191,12 +191,7 @@ struct AssetDetailView: View {
                     detailRow("Sector", holding.sector ?? fallbackCategory)
                     detailRow("Industry", holding.industry ?? holding.kind.title)
                     detailRow("Dividend Yield", holding.dividendYield?.formatted(Formatters.percent) ?? "Unavailable")
-                    if let exchangeName = holding.exchangeName, !exchangeName.isEmpty {
-                        detailRow("Exchange", exchangeName)
-                    }
-                    if let currencyCode = holding.currencyCode, !currencyCode.isEmpty {
-                        detailRow("Currency", currencyCode)
-                    }
+                    detailRow("Earnings Date", holding.earningsDate ?? "Unavailable")
                     detailRow("Last Updated", holding.lastPriceUpdate?.formatted(Formatters.time) ?? "Manual")
                 }
             }

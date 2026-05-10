@@ -28,13 +28,13 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .dashboard: "rectangle.grid.2x2"
-        case .holdings: "chart.pie"
-        case .watchlist: "eye"
+        case .dashboard: "building.columns"
+        case .holdings: "square.grid.3x3"
+        case .watchlist: "dot.radiowaves.left.and.right"
         case .transactions: "arrow.left.arrow.right"
-        case .performance: "chart.xyaxis.line"
-        case .reports: "doc.text.magnifyingglass"
-        case .goals: "target"
+        case .performance: "chart.bar.xaxis"
+        case .reports: "doc.text"
+        case .goals: "scope"
         case .settings: "gearshape"
         }
     }
@@ -208,23 +208,16 @@ struct AppSidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(WorthlineTheme.accentStrong)
-                    Text("A")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 28, height: 28)
-
+            HStack(spacing: 14) {
+                BrandMark()
                 Text("Aureus")
-                    .font(.headline.weight(.semibold))
+                    .font(.system(size: 25, weight: .medium, design: .rounded))
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 18)
+            .padding(.horizontal, 24)
+            .padding(.top, 34)
+            .padding(.bottom, 18)
 
-            VStack(spacing: 5) {
+            VStack(spacing: 12) {
                 ForEach(AppSection.allCases) { section in
                     SidebarItem(
                         section: section,
@@ -237,7 +230,7 @@ struct AppSidebar: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 18)
 
             Spacer()
 
@@ -246,10 +239,10 @@ struct AppSidebar: View {
                 isRefreshing: isRefreshing,
                 refreshAction: refreshAction
             )
-            .padding(.horizontal, 12)
-            .padding(.bottom, 14)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 24)
         }
-        .frame(width: 214)
+        .frame(width: 254)
         .background(WorthlineTheme.sidebarBackground)
         .overlay(alignment: .trailing) {
             Rectangle()
@@ -269,20 +262,24 @@ struct SidebarItem: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: section.symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 18)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isSelected ? Color.white.opacity(0.13) : Color.secondary.opacity(0.08))
+                    Image(systemName: section.symbol)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .frame(width: 28, height: 28)
                 Text(section.title)
-                    .font(.callout.weight(.medium))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 10)
             .foregroundStyle(isSelected ? .white : WorthlineTheme.textPrimary)
             .background {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(WorthlineTheme.accent)
+                        .fill(Color.black.opacity(0.45))
                         .matchedGeometryEffect(id: "selected-section", in: namespace)
                 } else if hovering {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -292,6 +289,21 @@ struct SidebarItem: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+    }
+}
+
+private struct BrandMark: View {
+    private let columns = Array(repeating: GridItem(.fixed(4), spacing: 3), count: 4)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 3) {
+            ForEach(0..<16, id: \.self) { index in
+                Circle()
+                    .fill(index % 3 == 0 ? WorthlineTheme.accent : Color.white.opacity(0.82))
+                    .frame(width: 4, height: 4)
+            }
+        }
+        .frame(width: 28, height: 28)
     }
 }
 

@@ -24,6 +24,7 @@ struct AssetEditorView: View {
     @State private var sector: String
     @State private var industry: String
     @State private var dividendYield: Double?
+    @State private var earningsDate: String
     @State private var website: String
     @State private var logoURL: String
     @State private var exchangeName: String
@@ -61,6 +62,7 @@ struct AssetEditorView: View {
         _sector = State(initialValue: holding?.sector ?? "")
         _industry = State(initialValue: holding?.industry ?? "")
         _dividendYield = State(initialValue: holding?.dividendYield)
+        _earningsDate = State(initialValue: holding?.earningsDate ?? "")
         _website = State(initialValue: holding?.website ?? "")
         _logoURL = State(initialValue: holding?.logoURL ?? "")
         _exchangeName = State(initialValue: holding?.exchangeName ?? "")
@@ -251,6 +253,7 @@ struct AssetEditorView: View {
         target.sector = nilIfBlank(sector)
         target.industry = nilIfBlank(industry)
         target.dividendYield = dividendYield
+        target.earningsDate = nilIfBlank(earningsDate)
         target.website = nilIfBlank(website)
         target.logoURL = nilIfBlank(logoURL)
         target.exchangeName = nilIfBlank(exchangeName)
@@ -367,6 +370,7 @@ struct AssetEditorView: View {
         sector = profile.sector ?? sector
         industry = profile.industry ?? industry
         dividendYield = profile.dividendYield ?? dividendYield
+        earningsDate = profile.earningsDate ?? earningsDate
         website = profile.website ?? website
         logoURL = profile.logoURL ?? logoURL
         exchangeName = profile.exchangeName ?? exchangeName
