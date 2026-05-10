@@ -103,13 +103,11 @@ struct SettingsView: View {
         SectionCard {
             VStack(alignment: .leading, spacing: 16) {
                 SectionHeader(title: "Local Data")
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                HStack(spacing: 10) {
                     SecondaryButton(title: "Export CSV", symbol: "square.and.arrow.up", action: exportCSV)
                     SecondaryButton(title: "Import CSV", symbol: "square.and.arrow.down", action: importCSV)
                     SecondaryButton(title: "Backup", symbol: "externaldrive", action: exportBackup)
                     SecondaryButton(title: "Restore", symbol: "arrow.clockwise.icloud", action: restoreBackup)
-                }
-                HStack {
                     PrimaryButton(title: "Refresh Prices Now", symbol: "arrow.clockwise") {
                         Task { await refreshAction() }
                     }
@@ -148,7 +146,7 @@ struct SettingsView: View {
                 SectionHeader(title: "Product Areas")
                 Label("Watchlist uses its own local SwiftData model for non-owned symbols.", systemImage: "eye")
                 Label("Transactions support buys, sells, dividends, deposits, withdrawals, interest, and adjustments.", systemImage: "arrow.left.arrow.right")
-                Label("Reports and Goals are generated from existing holdings, snapshots, and settings.", systemImage: "chart.bar.doc.horizontal")
+                Label("Reports are generated from existing holdings, snapshots, and settings.", systemImage: "chart.bar.doc.horizontal")
             }
             .font(.callout)
             .foregroundStyle(WorthlineTheme.textSecondary)

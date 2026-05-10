@@ -91,12 +91,20 @@ struct DashboardView: View {
                         .frame(height: 230)
                     } else {
                         Chart(historySeries) { point in
-                            BarMark(
+                            AreaMark(
                                 x: .value("Date", point.date, unit: .day),
                                 y: .value("Net Worth", point.totalValue)
                             )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(.linearGradient(colors: [WorthlineTheme.positive.opacity(0.24), WorthlineTheme.positive.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+
+                            LineMark(
+                                x: .value("Date", point.date, unit: .day),
+                                y: .value("Net Worth", point.totalValue)
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                             .foregroundStyle(WorthlineTheme.positive)
-                            .cornerRadius(4)
                         }
                         .chartYAxis {
                             AxisMarks(position: .trailing) { value in
@@ -419,7 +427,7 @@ private struct DashboardTransactionRow: View {
                     .font(.callout.weight(.bold))
                     .foregroundStyle(tint)
                     .monospacedDigit()
-                Text(transaction.note.isEmpty ? (transaction.holding?.name ?? transaction.kind.title) : transaction.note)
+                Text("\(transaction.kind.title) · \(transaction.note.isEmpty ? (transaction.holding?.name ?? transaction.holding?.displayTicker ?? "Unassigned") : transaction.note)")
                     .font(.caption)
                     .foregroundStyle(WorthlineTheme.textSecondary)
                     .lineLimit(1)

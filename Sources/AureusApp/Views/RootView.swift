@@ -8,7 +8,6 @@ enum AppSection: String, CaseIterable, Identifiable {
     case transactions
     case performance
     case reports
-    case goals
     case settings
 
     var id: String { rawValue }
@@ -21,7 +20,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .transactions: "Transactions"
         case .performance: "Performance"
         case .reports: "Reports"
-        case .goals: "Goals"
         case .settings: "Settings"
         }
     }
@@ -34,7 +32,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .transactions: "arrow.left.arrow.right"
         case .performance: "chart.bar.xaxis"
         case .reports: "doc.text"
-        case .goals: "scope"
         case .settings: "gearshape"
         }
     }
@@ -115,8 +112,6 @@ struct RootView: View {
             PerformanceView(snapshotAction: createManualSnapshot)
         case .reports:
             ReportsView()
-        case .goals:
-            GoalsView()
         case .settings:
             SettingsView(refreshAction: refreshPrices)
         }
