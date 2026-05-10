@@ -1,6 +1,46 @@
 import SwiftData
 import SwiftUI
 
+private enum AppLaunchRouter {
+    static func routeRawExecutableToAppBundleIfNeeded() {
+        guard !isRunningFromAppBundle else { return }
+        guard let scriptURL = findBuildAppScript() else { return }
+
+        let process = Process()
+        process.executableURL = scriptURL
+        process.arguments = ["--open"]
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            fputs("Unable to launch Aureus.app: \(error.localizedDescription)\n", stderr)
+            exit(1)
+        }
+        exit(process.terminationStatus)
+    }
+
+    private static var isRunningFromAppBundle: Bool {
+        Bundle.main.bundlePath.hasSuffix(".app")
+    }
+
+    private static func findBuildAppScript() -> URL? {
+        let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let candidates = [
+            currentDirectory.appendingPathComponent("Scripts/build-app.sh"),
+            currentDirectory.deletingLastPathComponent().appendingPathComponent("Scripts/build-app.sh"),
+            URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Scripts/build-app.sh")
+        ]
+
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = AppIconRenderer.makeIcon()
@@ -12,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct AureusApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    init() {
+        AppLaunchRouter.routeRawExecutableToAppBundleIfNeeded()
+    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
