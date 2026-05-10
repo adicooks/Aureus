@@ -1,0 +1,4 @@
+module AureusPackageTests {
+    header "/Users/adi/Coding/Aureus/.build/arm64-apple-macosx/debug/AureusPackageTests.build/AureusPackageTests-Swift.h"
+    requires objc
+}
