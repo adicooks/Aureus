@@ -14,18 +14,17 @@ struct PerformanceView: View {
         PortfolioCalculator.summarize(holdings)
     }
 
-    private var visibleSnapshots: [NetWorthSnapshot] {
-        let filtered = snapshots.filter { range.contains($0.date) }
-        return filtered.isEmpty ? snapshots : filtered
+    private var historySeries: [NetWorthHistoryPoint] {
+        PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
     }
 
     private var returnSeries: [(date: Date, returnValue: Double)] {
-        guard let first = visibleSnapshots.first, first.totalValue > 0 else { return [] }
-        return visibleSnapshots.map { ($0.date, ($0.totalValue - first.totalValue) / first.totalValue) }
+        guard let first = historySeries.first, first.totalValue > 0 else { return [] }
+        return historySeries.map { ($0.date, ($0.totalValue - first.totalValue) / first.totalValue) }
     }
 
     private var timeWeightedReturn: Double {
-        guard let first = visibleSnapshots.first, let last = visibleSnapshots.last, first.totalValue > 0 else { return summary.unrealizedGainLossPercent }
+        guard let first = historySeries.first, let last = historySeries.last, first.totalValue > 0 else { return summary.unrealizedGainLossPercent }
         return (last.totalValue - first.totalValue) / first.totalValue
     }
 
@@ -34,8 +33,8 @@ struct PerformanceView: View {
     }
 
     private var dailyReturns: [Double] {
-        guard visibleSnapshots.count > 1 else { return [] }
-        return zip(visibleSnapshots.dropFirst(), visibleSnapshots).compactMap { current, previous in
+        guard historySeries.count > 1 else { return [] }
+        return zip(historySeries.dropFirst(), historySeries).compactMap { current, previous in
             previous.totalValue > 0 ? (current.totalValue - previous.totalValue) / previous.totalValue : nil
         }
     }
@@ -175,4 +174,3 @@ struct PerformanceView: View {
         }
     }
 }
-

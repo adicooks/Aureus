@@ -23,6 +23,13 @@ struct HoldingBackup: Codable {
     var latestPrice: Double?
     var previousClose: Double?
     var lastPriceUpdate: Date?
+    var sector: String?
+    var industry: String?
+    var dividendYield: Double?
+    var website: String?
+    var logoURL: String?
+    var exchangeName: String?
+    var currencyCode: String?
 
     init(_ holding: Holding) {
         kindRaw = holding.kindRaw
@@ -41,6 +48,13 @@ struct HoldingBackup: Codable {
         latestPrice = holding.latestPrice
         previousClose = holding.previousClose
         lastPriceUpdate = holding.lastPriceUpdate
+        sector = holding.sector
+        industry = holding.industry
+        dividendYield = holding.dividendYield
+        website = holding.website
+        logoURL = holding.logoURL
+        exchangeName = holding.exchangeName
+        currencyCode = holding.currencyCode
     }
 
     func makeHolding() -> Holding {
@@ -60,7 +74,14 @@ struct HoldingBackup: Codable {
             manualCurrentValue: manualCurrentValue,
             latestPrice: latestPrice,
             previousClose: previousClose,
-            lastPriceUpdate: lastPriceUpdate
+            lastPriceUpdate: lastPriceUpdate,
+            sector: sector,
+            industry: industry,
+            dividendYield: dividendYield,
+            website: website,
+            logoURL: logoURL,
+            exchangeName: exchangeName,
+            currencyCode: currencyCode
         )
     }
 }

@@ -16,9 +16,8 @@ struct DashboardView: View {
         PortfolioCalculator.summarize(holdings)
     }
 
-    private var visibleSnapshots: [NetWorthSnapshot] {
-        let filtered = snapshots.filter { range.contains($0.date) }
-        return filtered.isEmpty ? snapshots : filtered
+    private var historySeries: [NetWorthHistoryPoint] {
+        PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
     }
 
     var body: some View {
@@ -103,7 +102,7 @@ struct DashboardView: View {
             ChartCard(title: "Net Worth Over Time", trailing: {
                 TimeRangePicker(selection: $range)
             }) {
-                if visibleSnapshots.isEmpty {
+                if historySeries.isEmpty {
                     EmptyStateView(
                         title: "No chart data",
                         message: "Worthline will draw this timeline after the first snapshot is saved.",
@@ -111,16 +110,16 @@ struct DashboardView: View {
                     )
                     .frame(height: 310)
                 } else {
-                    Chart(visibleSnapshots) { snapshot in
+                    Chart(historySeries) { point in
                         AreaMark(
-                            x: .value("Date", snapshot.date),
-                            y: .value("Net Worth", snapshot.totalValue)
+                            x: .value("Date", point.date),
+                            y: .value("Net Worth", point.totalValue)
                         )
                         .interpolationMethod(.catmullRom)
                         .foregroundStyle(.linearGradient(colors: [WorthlineTheme.accent.opacity(0.22), WorthlineTheme.accent.opacity(0.015)], startPoint: .top, endPoint: .bottom))
                         LineMark(
-                            x: .value("Date", snapshot.date),
-                            y: .value("Net Worth", snapshot.totalValue)
+                            x: .value("Date", point.date),
+                            y: .value("Net Worth", point.totalValue)
                         )
                         .interpolationMethod(.catmullRom)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
@@ -226,4 +225,3 @@ private struct AssetBreakdownCard: View {
         }
     }
 }
-

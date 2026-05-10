@@ -6,12 +6,15 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Holding.name) private var holdings: [Holding]
     @Query(sort: \NetWorthSnapshot.date) private var snapshots: [NetWorthSnapshot]
+    @Query private var watchlistItems: [WatchlistItem]
+    @Query private var transactions: [Transaction]
     @Query private var settings: [UserSettings]
 
     let refreshAction: () async -> Void
 
     @State private var statusMessage: String?
     @State private var showingSampleConfirmation = false
+    @State private var showingClearDataConfirmation = false
 
     private var activeSettings: UserSettings? {
         settings.first
@@ -34,6 +37,12 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Sample assets and snapshots will be added to your local store.")
+        }
+        .alert("Clear All Local Data?", isPresented: $showingClearDataConfirmation) {
+            Button("Clear Everything", role: .destructive, action: clearAllData)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes holdings, watchlist symbols, transactions, price history, snapshots, and saved preferences from this Mac.")
         }
     }
 
@@ -61,11 +70,13 @@ struct SettingsView: View {
                             Text(interval.title).tag(interval)
                         }
                     }
+                    .controlSize(.large)
 
                     TextField("Net worth goal", value: Binding(
                         get: { activeSettings.netWorthGoal },
                         set: { activeSettings.netWorthGoal = max(0, $0); try? modelContext.save() }
                     ), format: .number.precision(.fractionLength(0...2)))
+                    .aureusFieldStyle()
 
                     Toggle("Require local app lock", isOn: Binding(
                         get: { activeSettings.requireLocalLock },
@@ -104,6 +115,9 @@ struct SettingsView: View {
                     }
                     SecondaryButton(title: "Load Sample Data", symbol: "wand.and.stars") {
                         showingSampleConfirmation = true
+                    }
+                    SecondaryButton(title: "Clear Data", symbol: "trash") {
+                        showingClearDataConfirmation = true
                     }
                     Spacer()
                 }
@@ -213,5 +227,15 @@ struct SettingsView: View {
         try? modelContext.save()
         statusMessage = "Sample data loaded."
     }
-}
 
+    private func clearAllData() {
+        transactions.forEach(modelContext.delete)
+        holdings.forEach(modelContext.delete)
+        snapshots.forEach(modelContext.delete)
+        watchlistItems.forEach(modelContext.delete)
+        settings.forEach(modelContext.delete)
+        modelContext.insert(UserSettings())
+        try? modelContext.save()
+        statusMessage = "All local data cleared."
+    }
+}

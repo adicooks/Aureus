@@ -20,6 +20,13 @@ final class Holding {
     var latestPrice: Double?
     var previousClose: Double?
     var lastPriceUpdate: Date?
+    var sector: String?
+    var industry: String?
+    var dividendYield: Double?
+    var website: String?
+    var logoURL: String?
+    var exchangeName: String?
+    var currencyCode: String?
     var createdAt: Date
     var updatedAt: Date
     var isArchived: Bool
@@ -48,6 +55,13 @@ final class Holding {
         latestPrice: Double? = nil,
         previousClose: Double? = nil,
         lastPriceUpdate: Date? = nil,
+        sector: String? = nil,
+        industry: String? = nil,
+        dividendYield: Double? = nil,
+        website: String? = nil,
+        logoURL: String? = nil,
+        exchangeName: String? = nil,
+        currencyCode: String? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         isArchived: Bool = false
@@ -69,6 +83,13 @@ final class Holding {
         self.latestPrice = latestPrice
         self.previousClose = previousClose
         self.lastPriceUpdate = lastPriceUpdate
+        self.sector = sector
+        self.industry = industry
+        self.dividendYield = dividendYield
+        self.website = website
+        self.logoURL = logoURL
+        self.exchangeName = exchangeName
+        self.currencyCode = currencyCode
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isArchived = isArchived
@@ -130,7 +151,28 @@ final class Holding {
         latestPrice = price.regularMarketPrice
         previousClose = price.previousClose
         ticker = price.symbol
+        exchangeName = price.exchangeName
+        currencyCode = price.currency
         lastPriceUpdate = date
+        updatedAt = date
+    }
+
+    func apply(profile: MarketAssetProfile, at date: Date = .now, updateName: Bool = false) {
+        ticker = profile.symbol
+        if updateName {
+            if let longName = profile.longName, !longName.isEmpty {
+                name = longName
+            } else if let shortName = profile.shortName, !shortName.isEmpty {
+                name = shortName
+            }
+        }
+        sector = profile.sector
+        industry = profile.industry
+        dividendYield = profile.dividendYield
+        website = profile.website
+        logoURL = profile.logoURL
+        exchangeName = profile.exchangeName ?? exchangeName
+        currencyCode = profile.currency ?? currencyCode
         updatedAt = date
     }
 }

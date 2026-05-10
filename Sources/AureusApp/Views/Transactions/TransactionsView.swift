@@ -237,6 +237,12 @@ struct TransactionEditorView: View {
     @State private var fees: Double = 0
     @State private var note: String = ""
     @State private var validationMessage: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case quantity
+        case note
+    }
 
     init(preselectedHolding: Holding? = nil) {
         _selectedHoldingID = State(initialValue: preselectedHolding?.id)
@@ -254,22 +260,31 @@ struct TransactionEditorView: View {
                                     Label(kind.title, systemImage: kind.symbol).tag(kind)
                                 }
                             }
+                            .controlSize(.large)
                             Picker("Asset", selection: $selectedHoldingID) {
                                 Text("Cash / Unassigned").tag(UUID?.none)
                                 ForEach(holdings) { holding in
                                     Text("\(holding.displayTicker) · \(holding.name)").tag(Optional(holding.id))
                                 }
                             }
+                            .controlSize(.large)
                             DatePicker("Date", selection: $date, displayedComponents: .date)
+                                .controlSize(.large)
                         }
                     }
 
                     SectionCard {
                         VStack(alignment: .leading, spacing: 14) {
                             TextField("Quantity", value: $quantity, format: .number.precision(.fractionLength(0...6)))
+                                .aureusFieldStyle()
+                                .focused($focusedField, equals: .quantity)
                             TextField(kind == .deposit || kind == .withdrawal ? "Amount" : "Price", value: $price, format: .number.precision(.fractionLength(0...2)))
+                                .aureusFieldStyle()
                             TextField("Fees", value: $fees, format: .number.precision(.fractionLength(0...2)))
+                                .aureusFieldStyle()
                             TextField("Description", text: $note)
+                                .aureusFieldStyle()
+                                .focused($focusedField, equals: .note)
                         }
                     }
 
@@ -295,6 +310,7 @@ struct TransactionEditorView: View {
             }
             .premiumPageBackground()
             .navigationTitle("Add Transaction")
+            .onAppear { focusedField = .quantity }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -348,4 +364,3 @@ struct TransactionEditorView: View {
         dismiss()
     }
 }
-

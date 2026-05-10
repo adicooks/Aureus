@@ -91,7 +91,7 @@ private struct WatchlistRow: View {
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(WorthlineTheme.accentSoft)
                 Text(String(item.ticker.prefix(2)))
                     .font(.caption.weight(.bold))
@@ -148,6 +148,13 @@ private struct WatchlistEditorView: View {
     @State private var name = ""
     @State private var note = ""
     @State private var validationMessage: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case ticker
+        case name
+        case note
+    }
 
     var body: some View {
         NavigationStack {
@@ -155,9 +162,15 @@ private struct WatchlistEditorView: View {
                 SectionCard {
                     VStack(alignment: .leading, spacing: 14) {
                         TextField("Ticker", text: $ticker)
+                            .aureusFieldStyle()
+                            .focused($focusedField, equals: .ticker)
                             .onChange(of: ticker) { _, newValue in ticker = newValue.uppercased() }
                         TextField("Name", text: $name)
+                            .aureusFieldStyle()
+                            .focused($focusedField, equals: .name)
                         TextField("Note", text: $note)
+                            .aureusFieldStyle()
+                            .focused($focusedField, equals: .note)
                     }
                 }
                 if let validationMessage {
@@ -170,6 +183,7 @@ private struct WatchlistEditorView: View {
             .padding(22)
             .premiumPageBackground()
             .navigationTitle("Add Symbol")
+            .onAppear { focusedField = .ticker }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -192,4 +206,3 @@ private struct WatchlistEditorView: View {
         dismiss()
     }
 }
-

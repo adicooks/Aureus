@@ -133,6 +133,14 @@ struct RootView: View {
             do {
                 let quote = try await quoteService.fetchQuote(for: holding.ticker)
                 holding.apply(price: quote)
+                if let profile = try? await quoteService.fetchProfile(for: holding.ticker) {
+                    holding.apply(profile: profile)
+                }
+                if let historyStart = Calendar.current.date(byAdding: .year, value: -1, to: .now) {
+                    if let history = try? await quoteService.fetchPriceHistory(for: holding.ticker, from: min(holding.purchaseDate, historyStart)) {
+                        insertMissingSnapshots(history, for: holding)
+                    }
+                }
                 modelContext.insert(PriceSnapshot(price: quote.regularMarketPrice, holding: holding))
             } catch {
                 failures.append("\(holding.ticker): \(error.localizedDescription)")
@@ -164,6 +172,16 @@ struct RootView: View {
         }
     }
 
+    private func insertMissingSnapshots(_ history: [HistoricalPricePoint], for holding: Holding) {
+        let calendar = Calendar.current
+        for point in history {
+            let alreadyExists = holding.priceSnapshots.contains { calendar.isDate($0.date, inSameDayAs: point.date) }
+            if !alreadyExists {
+                modelContext.insert(PriceSnapshot(date: point.date, price: point.price, holding: holding))
+            }
+        }
+    }
+
     private func showMessage(_ text: String) {
         withAnimation { message = text; errorMessage = nil }
         Task { @MainActor in
@@ -192,15 +210,15 @@ struct AppSidebar: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(WorthlineTheme.accent)
-                    Text("W")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(WorthlineTheme.accentStrong)
+                    Text("A")
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.white)
                 }
                 .frame(width: 28, height: 28)
 
-                Text("Worthline")
+                Text("Aureus")
                     .font(.headline.weight(.semibold))
             }
             .padding(.horizontal, 16)
@@ -263,11 +281,11 @@ struct SidebarItem: View {
             .foregroundStyle(isSelected ? .white : WorthlineTheme.textPrimary)
             .background {
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(WorthlineTheme.accent)
                         .matchedGeometryEffect(id: "selected-section", in: namespace)
                 } else if hovering {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.secondary.opacity(0.10))
                 }
             }
@@ -293,4 +311,3 @@ struct StatusToast: View {
             .foregroundStyle(.primary)
     }
 }
-

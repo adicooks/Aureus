@@ -68,8 +68,8 @@ enum PortfolioCalculator {
             dailyChangePercent: previousTotal > 0 ? dailyChange.map { $0 / previousTotal } : nil,
             allocation: allocation,
             metrics: metrics,
-            topGainers: metrics.sorted { $0.gainLossPercent > $1.gainLossPercent }.prefix(3).map { $0 },
-            topLosers: metrics.sorted { $0.gainLossPercent < $1.gainLossPercent }.prefix(3).map { $0 }
+            topGainers: metrics.filter { $0.gainLoss > 0 }.sorted { $0.gainLossPercent > $1.gainLossPercent }.prefix(3).map { $0 },
+            topLosers: metrics.filter { $0.gainLoss < 0 }.sorted { $0.gainLossPercent < $1.gainLossPercent }.prefix(3).map { $0 }
         )
     }
 }

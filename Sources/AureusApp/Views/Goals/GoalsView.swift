@@ -77,6 +77,7 @@ struct GoalsView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("Target net worth", value: $draftGoal, format: .number.precision(.fractionLength(0...2)))
+                        .aureusFieldStyle()
                     PrimaryButton(title: "Save Goal", symbol: "checkmark") {
                         saveGoal()
                     }
@@ -113,4 +114,3 @@ struct GoalsView: View {
         validationMessage = nil
     }
 }
-

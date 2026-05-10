@@ -11,6 +11,12 @@ enum AssetDetailTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private struct AssetPricePoint: Identifiable {
+    var id: Date { date }
+    let date: Date
+    let price: Double
+}
+
 struct AssetDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -22,10 +28,27 @@ struct AssetDetailView: View {
     @State private var selectedTab: AssetDetailTab = .overview
     @State private var range: TimeRange = .oneYear
 
-    private var visibleSnapshots: [PriceSnapshot] {
-        let sorted = holding.priceSnapshots.sorted { $0.date < $1.date }
-        let filtered = sorted.filter { range.contains($0.date) }
-        return filtered.isEmpty ? sorted : filtered
+    private var visiblePricePoints: [AssetPricePoint] {
+        pricePoints.filter { range.contains($0.date) }
+    }
+
+    private var pricePoints: [AssetPricePoint] {
+        var points = holding.priceSnapshots.map { AssetPricePoint(date: $0.date, price: $0.price) }
+        if holding.kind.isMarketPriced, holding.purchasePrice > 0 {
+            points.append(AssetPricePoint(date: holding.purchaseDate, price: holding.purchasePrice))
+        }
+        if holding.kind.isMarketPriced, currentPrice > 0 {
+            points.append(AssetPricePoint(date: holding.lastPriceUpdate ?? .now, price: currentPrice))
+        }
+        return points
+            .sorted { $0.date < $1.date }
+            .reduce(into: [AssetPricePoint]()) { result, point in
+                if let lastIndex = result.indices.last, Calendar.current.isDate(result[lastIndex].date, inSameDayAs: point.date) {
+                    result[lastIndex] = point
+                } else {
+                    result.append(point)
+                }
+            }
     }
 
     var body: some View {
@@ -66,7 +89,7 @@ struct AssetDetailView: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .semibold))
                     .frame(width: 34, height: 34)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -129,7 +152,7 @@ struct AssetDetailView: View {
         ChartCard(title: "Price History", trailing: {
             TimeRangePicker(selection: $range)
         }) {
-            if visibleSnapshots.isEmpty {
+            if visiblePricePoints.isEmpty {
                 EmptyStateView(
                     title: "No price history yet",
                     message: "Refresh prices to cache local market data for this asset.",
@@ -137,16 +160,16 @@ struct AssetDetailView: View {
                 )
                 .frame(height: 290)
             } else {
-                Chart(visibleSnapshots) { snapshot in
+                Chart(visiblePricePoints) { point in
                     AreaMark(
-                        x: .value("Date", snapshot.date),
-                        y: .value("Price", snapshot.price)
+                        x: .value("Date", point.date),
+                        y: .value("Price", point.price)
                     )
                     .interpolationMethod(.catmullRom)
                     .foregroundStyle(.linearGradient(colors: [holding.kind.tint.opacity(0.20), holding.kind.tint.opacity(0.02)], startPoint: .top, endPoint: .bottom))
                     LineMark(
-                        x: .value("Date", snapshot.date),
-                        y: .value("Price", snapshot.price)
+                        x: .value("Date", point.date),
+                        y: .value("Price", point.price)
                     )
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
@@ -165,9 +188,15 @@ struct AssetDetailView: View {
                     SectionHeader(title: "About")
                     detailRow("Type", holding.kind.singularTitle)
                     detailRow("Ticker", holding.displayTicker)
-                    detailRow("Sector", holding.customCategory.isEmpty ? "Unspecified" : holding.customCategory)
-                    detailRow("Industry", holding.kind.title)
-                    detailRow("Dividend Yield", "Unavailable")
+                    detailRow("Sector", holding.sector ?? fallbackCategory)
+                    detailRow("Industry", holding.industry ?? holding.kind.title)
+                    detailRow("Dividend Yield", holding.dividendYield?.formatted(Formatters.percent) ?? "Unavailable")
+                    if let exchangeName = holding.exchangeName, !exchangeName.isEmpty {
+                        detailRow("Exchange", exchangeName)
+                    }
+                    if let currencyCode = holding.currencyCode, !currencyCode.isEmpty {
+                        detailRow("Currency", currencyCode)
+                    }
                     detailRow("Last Updated", holding.lastPriceUpdate?.formatted(Formatters.time) ?? "Manual")
                 }
             }
@@ -233,6 +262,10 @@ struct AssetDetailView: View {
         holding.kind == .bond ? holding.principalAmount.formatted(Formatters.currency) : holding.quantity.formatted(Formatters.number)
     }
 
+    private var fallbackCategory: String {
+        holding.customCategory.isEmpty ? "Unspecified" : holding.customCategory
+    }
+
     private func detailRow(_ title: String, _ value: String) -> some View {
         HStack {
             Text(title)
@@ -245,4 +278,3 @@ struct AssetDetailView: View {
         .font(.callout)
     }
 }
-

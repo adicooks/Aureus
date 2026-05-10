@@ -36,12 +36,12 @@ struct SectionCard<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .background(WorthlineTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(WorthlineTheme.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(WorthlineTheme.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 10)
+            .shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 8)
     }
 }
 
@@ -91,7 +91,7 @@ struct StatCard: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(tint)
                         .frame(width: 30, height: 30)
-                        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     Spacer()
                 }
 
@@ -170,14 +170,14 @@ struct TimeRangePicker: View {
                         .monospacedDigit()
                         .padding(.horizontal, 9)
                         .padding(.vertical, 6)
-                        .background(selection == range ? WorthlineTheme.accent : Color.clear, in: Capsule())
+                        .background(selection == range ? WorthlineTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .foregroundStyle(selection == range ? .white : WorthlineTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(3)
-        .background(.quaternary.opacity(0.45), in: Capsule())
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -198,7 +198,7 @@ struct FilterPills<Option: Hashable, Label: View>: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
-                        .background(selection == option ? WorthlineTheme.accent : Color.secondary.opacity(0.10), in: Capsule())
+                        .background(selection == option ? WorthlineTheme.accent : Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .foregroundStyle(selection == option ? .white : WorthlineTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
@@ -230,9 +230,9 @@ struct SearchField: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(WorthlineTheme.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(WorthlineTheme.fieldBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(WorthlineTheme.border, lineWidth: 0.8)
         }
     }
@@ -259,8 +259,8 @@ struct PrimaryButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
-        .background(WorthlineTheme.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .shadow(color: WorthlineTheme.accent.opacity(0.28), radius: 10, y: 5)
+        .background(WorthlineTheme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .shadow(color: WorthlineTheme.accent.opacity(0.20), radius: 8, y: 4)
     }
 }
 
@@ -285,9 +285,9 @@ struct SecondaryButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(WorthlineTheme.textPrimary)
-        .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(WorthlineTheme.border, lineWidth: 0.8)
         }
     }
@@ -358,13 +358,32 @@ struct AssetIcon: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(holding.kind.tint.opacity(0.14))
-            Text(initials)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(holding.kind.tint)
+
+            if let logoURL = holding.logoURL, let url = URL(string: logoURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .padding(5)
+                    default:
+                        initialsView
+                    }
+                }
+            } else {
+                initialsView
+            }
         }
         .frame(width: 34, height: 34)
+    }
+
+    private var initialsView: some View {
+        Text(initials)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(holding.kind.tint)
     }
 
     private var initials: String {
@@ -397,7 +416,7 @@ struct AssetRow: View {
             }
             .padding(.vertical, 7)
             .padding(.horizontal, 8)
-            .background(hovering ? Color.secondary.opacity(0.10) : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(hovering ? Color.secondary.opacity(0.10) : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -417,7 +436,7 @@ struct EmptyStateView: View {
                 .font(.system(size: 38, weight: .light))
                 .foregroundStyle(WorthlineTheme.accent)
                 .frame(width: 68, height: 68)
-                .background(WorthlineTheme.accentSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(WorthlineTheme.accentSoft, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             Text(title)
                 .font(.title3.weight(.semibold))
             Text(message)
@@ -497,4 +516,3 @@ struct MarketStatusCard: View {
         }
     }
 }
-
