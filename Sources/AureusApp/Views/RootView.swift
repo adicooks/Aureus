@@ -238,7 +238,16 @@ struct AppSidebar: View {
             .padding(.bottom, 24)
         }
         .frame(width: 254)
-        .background(WorthlineTheme.sidebarBackground)
+        .background {
+            WorthlineTheme.sidebarBackground
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.035), Color.clear, Color.black.opacity(0.24)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+        }
         .overlay(alignment: .trailing) {
             Rectangle()
                 .fill(WorthlineTheme.border)
@@ -274,11 +283,15 @@ struct SidebarItem: View {
             .background {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.black.opacity(0.45))
+                        .fill(Color.black.opacity(0.58))
+                        .overlay {
+                            LinearGradient(colors: [Color.white.opacity(0.055), Color.clear], startPoint: .top, endPoint: .bottom)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
                         .matchedGeometryEffect(id: "selected-section", in: namespace)
                 } else if hovering {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.secondary.opacity(0.10))
+                        .fill(Color.white.opacity(0.055))
                 }
             }
         }

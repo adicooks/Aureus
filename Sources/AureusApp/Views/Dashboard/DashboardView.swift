@@ -21,6 +21,17 @@ struct DashboardView: View {
         PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
     }
 
+    private var recentActivities: [DashboardActivity] {
+        let transactionActivities = transactions.map(DashboardActivity.transaction)
+        let holdingActivities = holdings
+            .filter { !$0.isArchived }
+            .map(DashboardActivity.holding)
+        return (transactionActivities + holdingActivities)
+            .sorted { $0.date > $1.date }
+            .prefix(6)
+            .map { $0 }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -39,7 +50,6 @@ struct DashboardView: View {
                     }
                 } else {
                     dashboardHero
-                    metricGrid
                     assetsAndTransactions
                 }
             }
@@ -133,49 +143,16 @@ struct DashboardView: View {
                     .opacity(0.55)
 
                 AllocationPanel(summary: summary)
-                    .frame(width: 360)
+                    .frame(width: 420)
                     .padding(28)
             }
-        }
-    }
-
-    private var metricGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 14) {
-            StatCard(
-                title: "Net Worth",
-                value: summary.totalNetWorth.formatted(Formatters.currency),
-                detail: "\(holdings.count) holdings",
-                symbol: "dollarsign.circle",
-                tint: WorthlineTheme.accent
-            )
-            StatCard(
-                title: "Total Invested",
-                value: summary.totalInvested.formatted(Formatters.currency),
-                detail: "Cost basis",
-                symbol: "tray.and.arrow.down",
-                tint: .blue
-            )
-            StatCard(
-                title: "Total Gain/Loss",
-                value: summary.unrealizedGainLoss.formatted(Formatters.currency),
-                detail: summary.unrealizedGainLossPercent.formatted(Formatters.percent),
-                symbol: summary.unrealizedGainLoss >= 0 ? "arrow.up.right.circle" : "arrow.down.right.circle",
-                tint: summary.unrealizedGainLoss >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative
-            )
-            StatCard(
-                title: "Today's Change",
-                value: (summary.dailyChange ?? 0).formatted(Formatters.currency),
-                detail: summary.dailyChangePercent?.formatted(Formatters.percent) ?? "Awaiting prices",
-                symbol: "waveform.path.ecg",
-                tint: (summary.dailyChange ?? 0) >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative
-            )
         }
     }
 
     private var assetsAndTransactions: some View {
         HStack(alignment: .top, spacing: 20) {
             DashboardAssetsCard(metrics: summary.metrics)
-            DashboardTransactionsCard(transactions: Array(transactions.prefix(6)))
+            DashboardTransactionsCard(activities: recentActivities)
                 .frame(width: 410)
         }
     }
@@ -219,16 +196,8 @@ private struct GainBadge: View {
 private struct AllocationPanel: View {
     let summary: PortfolioSummary
 
-    private var score: Int {
-        min(99, max(0, summary.allocation.count * 14 + Int((1 - concentration) * 35)))
-    }
-
-    private var concentration: Double {
-        summary.allocation.map(\.percent).max() ?? 1
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             Text("Categories")
                 .font(.headline.weight(.semibold))
 
@@ -255,20 +224,12 @@ private struct AllocationPanel: View {
 
             Divider().opacity(0.5)
 
-            HStack {
-                Text("Diversification Score")
-                    .font(.headline.weight(.semibold))
-                Spacer()
-                Text("\(score)")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(WorthlineTheme.positive)
-                    .monospacedDigit()
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+                MiniMetricBlock(title: "Net Worth", value: summary.totalNetWorth.formatted(Formatters.currency), tint: WorthlineTheme.accent)
+                MiniMetricBlock(title: "Invested", value: summary.totalInvested.formatted(Formatters.currency), tint: .blue)
+                MiniMetricBlock(title: "Gain/Loss", value: summary.unrealizedGainLoss.formatted(Formatters.currency), tint: summary.unrealizedGainLoss >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
+                MiniMetricBlock(title: "Today", value: (summary.dailyChange ?? 0).formatted(Formatters.currency), tint: (summary.dailyChange ?? 0) >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
             }
-            ScoreBars(score: score)
-
-            Text("\(summary.metrics.count) holdings across \(summary.allocation.count) categories")
-                .font(.callout.weight(.medium))
-                .foregroundStyle(WorthlineTheme.textPrimary)
         }
     }
 }
@@ -289,16 +250,29 @@ private struct StackedAllocationBar: View {
     }
 }
 
-private struct ScoreBars: View {
-    let score: Int
+private struct MiniMetricBlock: View {
+    let title: String
+    let value: String
+    let tint: Color
 
     var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<14, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(index < Int(Double(score) / 100 * 14) ? WorthlineTheme.positive : Color.secondary.opacity(0.22))
-                    .frame(height: 10)
-            }
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(WorthlineTheme.textSecondary)
+            Text(value)
+                .font(.callout.weight(.bold))
+                .foregroundStyle(WorthlineTheme.textPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 0.8)
         }
     }
 }
@@ -381,22 +355,41 @@ private struct DashboardAssetRow: View {
     }
 }
 
+private enum DashboardActivity: Identifiable {
+    case transaction(Transaction)
+    case holding(Holding)
+
+    var id: String {
+        switch self {
+        case .transaction(let transaction): "transaction-\(transaction.id.uuidString)"
+        case .holding(let holding): "holding-\(holding.id.uuidString)"
+        }
+    }
+
+    var date: Date {
+        switch self {
+        case .transaction(let transaction): transaction.date
+        case .holding(let holding): holding.purchaseDate
+        }
+    }
+}
+
 private struct DashboardTransactionsCard: View {
-    let transactions: [Transaction]
+    let activities: [DashboardActivity]
 
     var body: some View {
         SectionCard(padding: 26) {
             VStack(alignment: .leading, spacing: 22) {
                 SectionHeader(title: "Transactions")
-                if transactions.isEmpty {
+                if activities.isEmpty {
                     Text("No transactions yet")
                         .font(.callout)
                         .foregroundStyle(WorthlineTheme.textSecondary)
                         .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
                 } else {
                     VStack(spacing: 14) {
-                        ForEach(transactions) { transaction in
-                            DashboardTransactionRow(transaction: transaction)
+                        ForEach(activities) { activity in
+                            DashboardTransactionRow(activity: activity)
                         }
                     }
                 }
@@ -406,10 +399,44 @@ private struct DashboardTransactionsCard: View {
 }
 
 private struct DashboardTransactionRow: View {
-    let transaction: Transaction
+    let activity: DashboardActivity
 
     private var tint: Color {
-        transaction.signedAmount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative
+        amount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative
+    }
+
+    private var amount: Double {
+        switch activity {
+        case .transaction(let transaction): transaction.signedAmount
+        case .holding(let holding): -holding.costBasis
+        }
+    }
+
+    private var symbol: String {
+        switch activity {
+        case .transaction(let transaction): transaction.kind.symbol
+        case .holding: TransactionKind.buy.symbol
+        }
+    }
+
+    private var title: String {
+        switch activity {
+        case .transaction(let transaction): transaction.kind.title
+        case .holding: TransactionKind.buy.title
+        }
+    }
+
+    private var subtitle: String {
+        switch activity {
+        case .transaction(let transaction):
+            return transaction.note.isEmpty ? (transaction.holding?.name ?? transaction.holding?.displayTicker ?? "Unassigned") : transaction.note
+        case .holding(let holding):
+            return "\(holding.displayTicker) · \(holding.name)"
+        }
+    }
+
+    private var date: Date {
+        activity.date
     }
 
     var body: some View {
@@ -417,17 +444,17 @@ private struct DashboardTransactionRow: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(tint.opacity(0.14))
-                Image(systemName: transaction.kind.symbol)
+                Image(systemName: symbol)
                     .foregroundStyle(tint)
             }
             .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.signedAmount, format: Formatters.currency)
+                Text(amount, format: Formatters.currency)
                     .font(.callout.weight(.bold))
                     .foregroundStyle(tint)
                     .monospacedDigit()
-                Text("\(transaction.kind.title) · \(transaction.note.isEmpty ? (transaction.holding?.name ?? transaction.holding?.displayTicker ?? "Unassigned") : transaction.note)")
+                Text("\(title) · \(subtitle)")
                     .font(.caption)
                     .foregroundStyle(WorthlineTheme.textSecondary)
                     .lineLimit(1)
@@ -436,8 +463,8 @@ private struct DashboardTransactionRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(transaction.date.formatted(Formatters.compactDate))
-                Text(transaction.date.formatted(Formatters.time))
+                Text(date.formatted(Formatters.compactDate))
+                Text(date.formatted(Formatters.time))
             }
             .font(.caption)
             .foregroundStyle(WorthlineTheme.textSecondary)

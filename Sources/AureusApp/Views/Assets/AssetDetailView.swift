@@ -21,6 +21,7 @@ struct AssetDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var holding: Holding
+    var closeAction: (() -> Void)?
 
     @State private var showingEdit = false
     @State private var showingTransactionEditor = false
@@ -73,7 +74,7 @@ struct AssetDetailView: View {
             Button("Delete", role: .destructive) {
                 modelContext.delete(holding)
                 try? modelContext.save()
-                dismiss()
+                close()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -84,7 +85,7 @@ struct AssetDetailView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
             Button {
-                dismiss()
+                close()
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .semibold))
@@ -271,5 +272,13 @@ struct AssetDetailView: View {
                 .multilineTextAlignment(.trailing)
         }
         .font(.callout)
+    }
+
+    private func close() {
+        if let closeAction {
+            closeAction()
+        } else {
+            dismiss()
+        }
     }
 }

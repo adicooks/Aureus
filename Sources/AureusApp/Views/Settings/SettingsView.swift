@@ -32,11 +32,11 @@ struct SettingsView: View {
             .padding(28)
         }
         .premiumPageBackground()
-        .alert("Load Sample Data?", isPresented: $showingSampleConfirmation) {
-            Button("Load", action: loadSampleData)
+        .alert("Load Random Data?", isPresented: $showingSampleConfirmation) {
+            Button("Load", action: loadRandomData)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Sample assets and snapshots will be added to your local store.")
+            Text("Randomized assets and snapshots will be added to your local store.")
         }
         .alert("Clear All Local Data?", isPresented: $showingClearDataConfirmation) {
             Button("Clear Everything", role: .destructive, action: clearAllData)
@@ -108,10 +108,10 @@ struct SettingsView: View {
                     SecondaryButton(title: "Import CSV", symbol: "square.and.arrow.down", action: importCSV)
                     SecondaryButton(title: "Backup", symbol: "externaldrive", action: exportBackup)
                     SecondaryButton(title: "Restore", symbol: "arrow.clockwise.icloud", action: restoreBackup)
-                    PrimaryButton(title: "Refresh Prices Now", symbol: "arrow.clockwise") {
+                    SecondaryButton(title: "Refresh Prices Now", symbol: "arrow.clockwise") {
                         Task { await refreshAction() }
                     }
-                    SecondaryButton(title: "Load Sample Data", symbol: "wand.and.stars") {
+                    SecondaryButton(title: "Load Random Data", symbol: "wand.and.stars") {
                         showingSampleConfirmation = true
                     }
                     SecondaryButton(title: "Clear Data", symbol: "trash") {
@@ -219,11 +219,48 @@ struct SettingsView: View {
         }
     }
 
-    private func loadSampleData() {
-        SampleData.holdings.forEach(modelContext.insert)
-        SampleData.snapshots.forEach(modelContext.insert)
+    private func loadRandomData() {
+        SampleData.holdings.map(randomizedHolding).forEach(modelContext.insert)
+        randomizedSnapshots().forEach(modelContext.insert)
         try? modelContext.save()
-        statusMessage = "Sample data loaded."
+        statusMessage = "Random data loaded."
+    }
+
+    private func randomizedHolding(from sample: Holding) -> Holding {
+        let purchaseDate = Calendar.current.date(byAdding: .day, value: -Int.random(in: 14...900), to: .now) ?? sample.purchaseDate
+        return Holding(
+            kind: sample.kind,
+            name: sample.name,
+            ticker: sample.ticker,
+            quantity: sample.quantity,
+            purchaseDate: purchaseDate,
+            purchasePrice: sample.purchasePrice,
+            fees: sample.fees,
+            notes: sample.notes,
+            principalAmount: sample.principalAmount,
+            interestRate: sample.interestRate,
+            maturityDate: sample.maturityDate,
+            customCategory: sample.customCategory,
+            manualCurrentValue: sample.manualCurrentValue,
+            latestPrice: sample.latestPrice,
+            previousClose: sample.previousClose,
+            lastPriceUpdate: sample.lastPriceUpdate
+        )
+    }
+
+    private func randomizedSnapshots() -> [NetWorthSnapshot] {
+        stride(from: 11, through: 0, by: -1).map { offset in
+            let baseDate = Calendar.current.date(byAdding: .month, value: -offset, to: .now) ?? .now
+            let date = Calendar.current.date(byAdding: .day, value: Int.random(in: -8...8), to: baseDate) ?? baseDate
+            let value = 185_000 + Double(11 - offset) * Double.random(in: 6_500...8_800) + Double.random(in: -5_000...5_000)
+            return NetWorthSnapshot(
+                date: min(date, .now),
+                totalValue: value,
+                investedAmount: value * Double.random(in: 0.76...0.88),
+                unrealizedGainLoss: value * Double.random(in: 0.10...0.24),
+                note: "Random"
+            )
+        }
     }
 
     private func clearAllData() {

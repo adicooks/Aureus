@@ -84,39 +84,55 @@ struct HoldingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            header
+        ZStack {
+            VStack(alignment: .leading, spacing: 18) {
+                header
 
-            if holdings.isEmpty {
-                SectionCard {
-                    EmptyStateView(
-                        title: "No holdings yet",
-                        message: "Add assets manually or import a CSV to begin tracking your portfolio.",
-                        symbol: "tray",
-                        buttonTitle: "Add Asset",
-                        action: addAction
+                if holdings.isEmpty {
+                    SectionCard {
+                        EmptyStateView(
+                            title: "No holdings yet",
+                            message: "Add assets manually or import a CSV to begin tracking your portfolio.",
+                            symbol: "tray",
+                            buttonTitle: "Add Asset",
+                            action: addAction
+                        )
+                        .frame(minHeight: 480)
+                    }
+                    .padding(.horizontal, 28)
+                } else {
+                    controls
+                    HoldingsTable(
+                        metrics: filteredMetrics,
+                        summary: summary,
+                        openAction: { selectedHolding = $0 },
+                        editAction: { editingHolding = $0 },
+                        deleteAction: { deleteCandidate = $0 }
                     )
-                    .frame(minHeight: 480)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 28)
-            } else {
-                controls
-                HoldingsTable(
-                    metrics: filteredMetrics,
-                    summary: summary,
-                    openAction: { selectedHolding = $0 },
-                    editAction: { editingHolding = $0 },
-                    deleteAction: { deleteCandidate = $0 }
-                )
-                .padding(.horizontal, 28)
-                .padding(.bottom, 24)
+            }
+
+            if let selectedHolding {
+                Color.black.opacity(0.32)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        self.selectedHolding = nil
+                    }
+
+                AssetDetailView(holding: selectedHolding, closeAction: { self.selectedHolding = nil })
+                    .frame(width: 900, height: 720)
+                    .background(WorthlineTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(WorthlineTheme.border, lineWidth: 0.8)
+                    }
+                    .shadow(color: .black.opacity(0.35), radius: 30, y: 18)
+                    .padding(36)
             }
         }
         .premiumPageBackground()
-        .sheet(item: $selectedHolding) { holding in
-            AssetDetailView(holding: holding)
-                .frame(minWidth: 820, minHeight: 680)
-        }
         .sheet(item: $editingHolding) { holding in
             AssetEditorView(holding: holding)
                 .frame(minWidth: 560, minHeight: 620)
@@ -164,13 +180,7 @@ struct HoldingsView: View {
                 SearchField(placeholder: "Search holdings...", text: $searchText)
                     .frame(width: 320)
                 Spacer()
-                Picker("Sort", selection: $sort) {
-                    ForEach(HoldingSort.allCases) { sort in
-                        Text(sort.title).tag(sort)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 170)
+                SortMenu(selection: $sort)
             }
 
             FilterPills(options: HoldingFilter.allCases, selection: $filter) { filter in
@@ -219,6 +229,7 @@ struct HoldingsTable: View {
 
                 totalRow
             }
+            .frame(maxHeight: 560, alignment: .top)
         }
     }
 
@@ -233,8 +244,9 @@ struct HoldingsTable: View {
             Color.clear.frame(width: 26)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(Color.secondary.opacity(0.08))
+        .frame(height: 48)
     }
 
     private var totalRow: some View {
@@ -259,9 +271,10 @@ struct HoldingsTable: View {
             Color.clear.frame(width: 26)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, 10)
         .background(.regularMaterial)
         .overlay(alignment: .top) { Divider() }
+        .frame(height: 54)
     }
 
     private func tableLabel(_ text: String, alignment: Alignment = .trailing) -> some View {
@@ -269,6 +282,48 @@ struct HoldingsTable: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(WorthlineTheme.textSecondary)
             .frame(maxWidth: .infinity, alignment: alignment)
+    }
+}
+
+private struct SortMenu: View {
+    @Binding var selection: HoldingSort
+
+    var body: some View {
+        Menu {
+            ForEach(HoldingSort.allCases) { sort in
+                Button {
+                    selection = sort
+                } label: {
+                    if selection == sort {
+                        Label(sort.title, systemImage: "checkmark")
+                    } else {
+                        Text(sort.title)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(WorthlineTheme.textSecondary)
+                Text(selection.title)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(WorthlineTheme.textSecondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(width: 172, alignment: .leading)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(WorthlineTheme.border, lineWidth: 0.8)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
     }
 }
 
@@ -316,12 +371,13 @@ private struct HoldingTableRow: View {
                         .contentShape(Rectangle())
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .frame(width: 26)
             }
             .font(.callout)
             .monospacedDigit()
             .padding(.horizontal, 18)
-            .padding(.vertical, 11)
+            .padding(.vertical, 7)
             .background(hovering ? WorthlineTheme.accent.opacity(0.08) : Color.clear)
             .contentShape(Rectangle())
         }
@@ -340,4 +396,3 @@ private struct HoldingTableRow: View {
         return dailyChange / previous
     }
 }
-

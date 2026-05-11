@@ -36,12 +36,28 @@ struct SectionCard<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .background(WorthlineTheme.cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(WorthlineTheme.cardBackground)
+                    .overlay {
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.070), Color.white.opacity(0.018), Color.black.opacity(0.16)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .overlay(alignment: .top) {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            .blur(radius: 0.2)
+                    }
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(WorthlineTheme.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 10)
+            .shadow(color: .black.opacity(0.34), radius: 22, x: 0, y: 14)
     }
 }
 
@@ -73,7 +89,7 @@ struct SectionHeader: View {
                     .foregroundStyle(WorthlineTheme.textPrimary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
-                    .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(matteControlBackground)
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(WorthlineTheme.border, lineWidth: 0.8)
@@ -177,7 +193,7 @@ struct TimeRangePicker: View {
                         .monospacedDigit()
                         .padding(.horizontal, 13)
                         .padding(.vertical, 7)
-                        .background(selection == range ? Color.white.opacity(0.16) : Color.secondary.opacity(0.11), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .aureusPillBackground(isSelected: selection == range)
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(selection == range ? Color.white.opacity(0.45) : Color.clear, lineWidth: 0.8)
@@ -208,7 +224,7 @@ struct FilterPills<Option: Hashable, Label: View>: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
-                        .background(selection == option ? Color.white.opacity(0.16) : Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .aureusPillBackground(isSelected: selection == option)
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(selection == option ? Color.white.opacity(0.40) : Color.clear, lineWidth: 0.8)
@@ -244,7 +260,7 @@ struct SearchField: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(WorthlineTheme.fieldBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(matteFieldBackground)
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(WorthlineTheme.border, lineWidth: 0.8)
@@ -273,8 +289,15 @@ struct PrimaryButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-        .background(Color.primary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(color: .black.opacity(0.20), radius: 10, y: 5)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary)
+                .overlay {
+                    LinearGradient(colors: [Color.white.opacity(0.24), Color.clear], startPoint: .top, endPoint: .bottom)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+        }
+        .shadow(color: .black.opacity(0.30), radius: 12, y: 6)
     }
 }
 
@@ -299,10 +322,45 @@ struct SecondaryButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(WorthlineTheme.textPrimary)
-        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(matteControlBackground)
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(WorthlineTheme.border, lineWidth: 0.8)
+        }
+    }
+}
+
+private var matteControlBackground: some View {
+    RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .fill(Color.white.opacity(0.055))
+        .overlay {
+            LinearGradient(colors: [Color.white.opacity(0.075), Color.clear], startPoint: .top, endPoint: .bottom)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+}
+
+private var matteFieldBackground: some View {
+    RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .fill(WorthlineTheme.fieldBackground)
+        .overlay {
+            LinearGradient(colors: [Color.white.opacity(0.055), Color.clear], startPoint: .top, endPoint: .bottom)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+}
+
+private extension View {
+    func aureusPillBackground(isSelected: Bool) -> some View {
+        background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.145) : Color.white.opacity(0.055))
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(isSelected ? 0.16 : 0.075), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
         }
     }
 }
