@@ -105,6 +105,7 @@ struct StatCard: View {
     var detail: String?
     var symbol: String
     var tint: Color = WorthlineTheme.accent
+    var help: String?
 
     var body: some View {
         SectionCard(padding: 16) {
@@ -119,9 +120,17 @@ struct StatCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(title)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(WorthlineTheme.textSecondary)
+                    HStack(spacing: 5) {
+                        Text(title)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(WorthlineTheme.textSecondary)
+                        if let help {
+                            Image(systemName: "info.circle")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(WorthlineTheme.textSecondary)
+                                .help(help)
+                        }
+                    }
                     Text(value)
                         .font(.system(.title3, design: .rounded, weight: .semibold))
                         .monospacedDigit()
@@ -432,6 +441,10 @@ struct AssetIcon: View {
         ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(holding.kind.tint.opacity(0.14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(holding.kind.tint.opacity(0.28), lineWidth: 0.9)
+                }
 
             if let logoURL = holding.logoURL, let url = URL(string: logoURL) {
                 AsyncImage(url: url) { phase in
@@ -445,6 +458,10 @@ struct AssetIcon: View {
                         initialsView
                     }
                 }
+            } else if usesDefaultAssetSymbol {
+                Image(systemName: holding.kind.symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(holding.kind.tint)
             } else {
                 initialsView
             }
@@ -461,6 +478,10 @@ struct AssetIcon: View {
     private var initials: String {
         let source = holding.ticker.isEmpty ? holding.name : holding.ticker
         return String(source.prefix(2)).uppercased()
+    }
+
+    private var usesDefaultAssetSymbol: Bool {
+        holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond
     }
 }
 

@@ -41,6 +41,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Holding.name) private var holdings: [Holding]
     @Query(sort: \NetWorthSnapshot.date) private var snapshots: [NetWorthSnapshot]
+    @Query private var transactions: [Transaction]
     @Query private var settings: [UserSettings]
 
     @State private var selection: AppSection = .dashboard
@@ -87,6 +88,7 @@ struct RootView: View {
         }
         .task {
             ensureSettings()
+            backfillInitialTransactionsIfNeeded()
             SnapshotService.saveDailySnapshotIfNeeded(holdings: holdings, snapshots: snapshots, context: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: .aureusAddAsset)) { _ in
@@ -167,6 +169,37 @@ struct RootView: View {
         }
     }
 
+    private func backfillInitialTransactionsIfNeeded() {
+        var insertedAny = false
+        for holding in holdings where !holding.isArchived {
+            let hasTransaction = transactions.contains { $0.holding?.id == holding.id }
+            guard !hasTransaction else { continue }
+            modelContext.insert(Transaction(
+                kind: .buy,
+                date: holding.purchaseDate,
+                quantity: holding.kind.isMarketPriced ? holding.quantity : 0,
+                price: initialTransactionPrice(for: holding),
+                fees: holding.fees,
+                note: "Initial position",
+                holding: holding
+            ))
+            insertedAny = true
+        }
+        if insertedAny {
+            try? modelContext.save()
+        }
+    }
+
+    private func initialTransactionPrice(for holding: Holding) -> Double {
+        if holding.kind.isMarketPriced {
+            return holding.purchasePrice
+        }
+        if holding.kind == .bond {
+            return holding.purchasePrice > 0 ? holding.purchasePrice : holding.principalAmount
+        }
+        return holding.purchasePrice > 0 ? holding.purchasePrice : holding.manualCurrentValue
+    }
+
     private func insertMissingSnapshots(_ history: [HistoricalPricePoint], for holding: Holding) {
         let calendar = Calendar.current
         for point in history {
@@ -208,7 +241,8 @@ struct AppSidebar: View {
                 Text("Aureus")
                     .font(.system(size: 25, weight: .medium, design: .rounded))
             }
-            .padding(.horizontal, 24)
+            .padding(.leading, 31)
+            .padding(.trailing, 24)
             .padding(.top, 34)
             .padding(.bottom, 18)
 

@@ -236,6 +236,7 @@ struct AssetEditorView: View {
             return
         }
 
+        let isNewHolding = holding == nil
         let target = holding ?? Holding(kind: kind, name: cleanName)
         target.kind = kind
         target.name = cleanName
@@ -260,12 +261,35 @@ struct AssetEditorView: View {
         target.currencyCode = nilIfBlank(currencyCode)
         target.updatedAt = .now
 
-        if holding == nil {
+        if isNewHolding {
             modelContext.insert(target)
+            modelContext.insert(initialTransaction(for: target))
         }
         try? modelContext.save()
         hydrateMarketDataIfNeeded(for: target)
         dismiss()
+    }
+
+    private func initialTransaction(for holding: Holding) -> Transaction {
+        Transaction(
+            kind: .buy,
+            date: holding.purchaseDate,
+            quantity: holding.kind.isMarketPriced ? holding.quantity : 0,
+            price: initialTransactionPrice(for: holding),
+            fees: holding.fees,
+            note: "Initial position",
+            holding: holding
+        )
+    }
+
+    private func initialTransactionPrice(for holding: Holding) -> Double {
+        if holding.kind.isMarketPriced {
+            return holding.purchasePrice
+        }
+        if holding.kind == .bond {
+            return holding.purchasePrice > 0 ? holding.purchasePrice : holding.principalAmount
+        }
+        return holding.purchasePrice > 0 ? holding.purchasePrice : holding.manualCurrentValue
     }
 
     private func currencyField(_ title: String, value: Binding<Double>) -> some View {

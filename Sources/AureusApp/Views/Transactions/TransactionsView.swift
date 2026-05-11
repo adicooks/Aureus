@@ -159,7 +159,7 @@ struct TransactionTable: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.vertical, 9)
         .background(Color.secondary.opacity(0.08))
     }
 
@@ -194,8 +194,8 @@ private struct TransactionRow: View {
                 .frame(width: 95, alignment: .trailing)
             Text(transaction.price == 0 ? "-" : transaction.price.formatted(Formatters.currency))
                 .frame(width: 105, alignment: .trailing)
-            Text(transaction.signedAmount, format: Formatters.currency)
-                .foregroundStyle(transaction.signedAmount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
+            Text(transaction.presentationAmount, format: Formatters.currency)
+                .foregroundStyle(transaction.presentationIsPositive ? WorthlineTheme.positive : WorthlineTheme.negative)
                 .fontWeight(.semibold)
                 .frame(width: 120, alignment: .trailing)
             if let deleteAction {
@@ -208,19 +208,20 @@ private struct TransactionRow: View {
                         .frame(width: 26, height: 26)
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .frame(width: 26)
             }
         }
         .font(.callout)
         .monospacedDigit()
         .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.vertical, 7)
         .background(hovering ? WorthlineTheme.accent.opacity(0.08) : Color.clear)
         .onHover { hovering = $0 }
     }
 
     private var tint: Color {
-        transaction.signedAmount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative
+        transaction.presentationIsPositive ? WorthlineTheme.positive : WorthlineTheme.negative
     }
 }
 
@@ -293,10 +294,10 @@ struct TransactionEditorView: View {
                             Text("Signed Amount")
                                 .foregroundStyle(WorthlineTheme.textSecondary)
                             Spacer()
-                            Text(signedAmount, format: Formatters.currency)
+                            Text(presentationAmount, format: Formatters.currency)
                                 .font(.title3.weight(.semibold))
                                 .monospacedDigit()
-                                .foregroundStyle(signedAmount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
+                                .foregroundStyle(presentationIsPositive ? WorthlineTheme.positive : WorthlineTheme.negative)
                         }
                     }
 
@@ -340,6 +341,21 @@ struct TransactionEditorView: View {
         }
     }
 
+    private var presentationIsPositive: Bool {
+        switch kind {
+        case .buy, .deposit, .dividend, .interest:
+            return true
+        case .sell, .withdrawal:
+            return false
+        case .adjustment:
+            return signedAmount >= 0
+        }
+    }
+
+    private var presentationAmount: Double {
+        presentationIsPositive ? abs(signedAmount) : -abs(signedAmount)
+    }
+
     private func save() {
         guard price >= 0, quantity >= 0, fees >= 0 else {
             validationMessage = "Values cannot be negative."
@@ -359,8 +375,53 @@ struct TransactionEditorView: View {
             note: note.trimmingCharacters(in: .whitespacesAndNewlines),
             holding: selectedHolding
         )
+        applyTransactionToSelectedHolding()
         modelContext.insert(transaction)
         try? modelContext.save()
         dismiss()
+    }
+
+    private func applyTransactionToSelectedHolding() {
+        guard let selectedHolding else { return }
+        let gross = quantity == 0 ? price : quantity * price
+        let transactionQuantity = quantity
+
+        switch kind {
+        case .buy:
+            if selectedHolding.kind.isMarketPriced, transactionQuantity > 0 {
+                let currentQuantity = selectedHolding.quantity
+                let currentCost = currentQuantity * selectedHolding.purchasePrice
+                let newQuantity = currentQuantity + transactionQuantity
+                selectedHolding.quantity = newQuantity
+                selectedHolding.purchasePrice = newQuantity > 0 ? (currentCost + transactionQuantity * price) / newQuantity : price
+                selectedHolding.fees += fees
+                selectedHolding.latestPrice = selectedHolding.latestPrice ?? price
+                selectedHolding.previousClose = selectedHolding.previousClose ?? price
+            } else if !selectedHolding.kind.isMarketPriced {
+                selectedHolding.manualCurrentValue += gross
+                selectedHolding.purchasePrice += gross
+                selectedHolding.fees += fees
+            }
+            if date < selectedHolding.purchaseDate {
+                selectedHolding.purchaseDate = date
+            }
+        case .sell:
+            if selectedHolding.kind.isMarketPriced, transactionQuantity > 0 {
+                selectedHolding.quantity = max(0, selectedHolding.quantity - transactionQuantity)
+            } else if !selectedHolding.kind.isMarketPriced {
+                selectedHolding.manualCurrentValue = max(0, selectedHolding.manualCurrentValue - gross)
+            }
+        case .deposit:
+            guard !selectedHolding.kind.isMarketPriced else { break }
+            selectedHolding.manualCurrentValue += gross
+            selectedHolding.purchasePrice += gross
+        case .withdrawal:
+            guard !selectedHolding.kind.isMarketPriced else { break }
+            selectedHolding.manualCurrentValue = max(0, selectedHolding.manualCurrentValue - gross)
+        case .dividend, .interest, .adjustment:
+            break
+        }
+
+        selectedHolding.updatedAt = .now
     }
 }

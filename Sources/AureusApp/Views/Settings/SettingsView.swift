@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var statusMessage: String?
     @State private var showingSampleConfirmation = false
     @State private var showingClearDataConfirmation = false
+    @State private var showingClearSnapshotsConfirmation = false
 
     private var activeSettings: UserSettings? {
         settings.first
@@ -44,6 +45,12 @@ struct SettingsView: View {
         } message: {
             Text("This permanently removes holdings, watchlist symbols, transactions, price history, snapshots, and saved preferences from this Mac.")
         }
+        .alert("Remove All Snapshots?", isPresented: $showingClearSnapshotsConfirmation) {
+            Button("Remove Snapshots", role: .destructive, action: clearSnapshots)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes saved net worth snapshots. Holdings, watchlist symbols, and transactions stay untouched.")
+        }
     }
 
     private var header: some View {
@@ -71,12 +78,6 @@ struct SettingsView: View {
                         }
                     }
                     .controlSize(.large)
-
-                    TextField("Net worth goal", value: Binding(
-                        get: { activeSettings.netWorthGoal },
-                        set: { activeSettings.netWorthGoal = max(0, $0); try? modelContext.save() }
-                    ), format: .number.precision(.fractionLength(0...2)))
-                    .aureusFieldStyle()
 
                     Toggle("Require local app lock", isOn: Binding(
                         get: { activeSettings.requireLocalLock },
@@ -108,11 +109,11 @@ struct SettingsView: View {
                     SecondaryButton(title: "Import CSV", symbol: "square.and.arrow.down", action: importCSV)
                     SecondaryButton(title: "Backup", symbol: "externaldrive", action: exportBackup)
                     SecondaryButton(title: "Restore", symbol: "arrow.clockwise.icloud", action: restoreBackup)
-                    SecondaryButton(title: "Refresh Prices Now", symbol: "arrow.clockwise") {
-                        Task { await refreshAction() }
-                    }
                     SecondaryButton(title: "Load Random Data", symbol: "wand.and.stars") {
                         showingSampleConfirmation = true
+                    }
+                    SecondaryButton(title: "Remove Snapshots", symbol: "camera.on.rectangle") {
+                        showingClearSnapshotsConfirmation = true
                     }
                     SecondaryButton(title: "Clear Data", symbol: "trash") {
                         showingClearDataConfirmation = true
@@ -272,5 +273,11 @@ struct SettingsView: View {
         modelContext.insert(UserSettings())
         try? modelContext.save()
         statusMessage = "All local data cleared."
+    }
+
+    private func clearSnapshots() {
+        snapshots.forEach(modelContext.delete)
+        try? modelContext.save()
+        statusMessage = "All snapshots removed."
     }
 }

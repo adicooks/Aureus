@@ -9,14 +9,10 @@ struct PerformanceView: View {
     let snapshotAction: () -> Void
 
     @State private var range: TimeRange = .oneYear
-
-    private var summary: PortfolioSummary {
-        PortfolioCalculator.summarize(holdings)
-    }
-
-    private var historySeries: [NetWorthHistoryPoint] {
-        PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
-    }
+    @State private var historySeries: [NetWorthHistoryPoint] = []
+    @State private var summary = PortfolioCalculator.summarize([])
+    @State private var isPreparing = true
+    @State private var refreshTask: Task<Void, Never>?
 
     private var returnSeries: [(date: Date, returnValue: Double)] {
         guard let first = historySeries.first, first.totalValue > 0 else { return [] }
@@ -39,6 +35,25 @@ struct PerformanceView: View {
         }
     }
 
+    private var holdingsVersion: String {
+        holdings.map {
+            [
+                $0.id.uuidString,
+                "\($0.quantity)",
+                "\($0.purchasePrice)",
+                "\($0.latestPrice ?? 0)",
+                "\($0.updatedAt.timeIntervalSince1970)",
+                "\($0.priceSnapshots.count)"
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
+    }
+
+    private var snapshotsVersion: String {
+        snapshots.map { "\($0.id.uuidString):\($0.date.timeIntervalSince1970):\($0.totalValue)" }
+            .joined(separator: "|")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -53,6 +68,11 @@ struct PerformanceView: View {
                         )
                         .frame(minHeight: 430)
                     }
+                } else if isPreparing {
+                    SectionCard {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 430)
+                    }
                 } else {
                     stats
                     HStack(alignment: .top, spacing: 16) {
@@ -65,6 +85,11 @@ struct PerformanceView: View {
             .padding(28)
         }
         .premiumPageBackground()
+        .onAppear(perform: scheduleRefresh)
+        .onDisappear { refreshTask?.cancel() }
+        .onChange(of: range) { _, _ in scheduleRefresh() }
+        .onChange(of: holdingsVersion) { _, _ in scheduleRefresh() }
+        .onChange(of: snapshotsVersion) { _, _ in scheduleRefresh() }
     }
 
     private var header: some View {
@@ -86,8 +111,20 @@ struct PerformanceView: View {
 
     private var stats: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 14) {
-            StatCard(title: "Time Weighted Return", value: timeWeightedReturn.formatted(Formatters.percent), symbol: "function", tint: timeWeightedReturn >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
-            StatCard(title: "Money Weighted Return", value: moneyWeightedReturn.formatted(Formatters.percent), symbol: "sum", tint: moneyWeightedReturn >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
+            StatCard(
+                title: "Time Weighted Return",
+                value: timeWeightedReturn.formatted(Formatters.percent),
+                symbol: "function",
+                tint: timeWeightedReturn >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative,
+                help: "Shows portfolio return over the selected period while reducing the effect of added or removed money."
+            )
+            StatCard(
+                title: "Money Weighted Return",
+                value: moneyWeightedReturn.formatted(Formatters.percent),
+                symbol: "sum",
+                tint: moneyWeightedReturn >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative,
+                help: "Compares current gain or loss with the dollars you invested, so your cash timing affects the result."
+            )
             StatCard(title: "Best Day", value: (dailyReturns.max() ?? 0).formatted(Formatters.percent), symbol: "arrow.up.right", tint: WorthlineTheme.positive)
             StatCard(title: "Worst Day", value: (dailyReturns.min() ?? 0).formatted(Formatters.percent), symbol: "arrow.down.right", tint: WorthlineTheme.negative)
         }
@@ -171,6 +208,18 @@ struct PerformanceView: View {
             }
             .chartXAxis { AxisMarks(position: .bottom) }
             .frame(height: max(260, CGFloat(summary.metrics.count) * 34))
+        }
+    }
+
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        isPreparing = true
+        refreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(40))
+            guard !Task.isCancelled else { return }
+            summary = PortfolioCalculator.summarize(holdings)
+            historySeries = PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
+            isPreparing = false
         }
     }
 }

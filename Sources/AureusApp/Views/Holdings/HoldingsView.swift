@@ -240,7 +240,7 @@ struct HoldingsTable: View {
             tableLabel("Market Value").frame(width: 140, alignment: .trailing)
             tableLabel("Gain/Loss").frame(width: 135, alignment: .trailing)
             tableLabel("Gain %").frame(width: 90, alignment: .trailing)
-            tableLabel("Day Change").frame(width: 115, alignment: .trailing)
+            tableLabel("Day Change").frame(width: 115, alignment: .center)
             Color.clear.frame(width: 26)
         }
         .padding(.horizontal, 18)
@@ -267,7 +267,7 @@ struct HoldingsTable: View {
                 .monospacedDigit()
                 .frame(width: 90, alignment: .trailing)
             GainLossText(amount: summary.dailyChange ?? 0, percent: summary.dailyChangePercent, compact: true)
-                .frame(width: 115, alignment: .trailing)
+                .frame(width: 115, alignment: .center)
             Color.clear.frame(width: 26)
         }
         .padding(.horizontal, 18)
@@ -360,7 +360,7 @@ private struct HoldingTableRow: View {
                     .foregroundStyle(metric.gainLoss >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
                     .frame(width: 90, alignment: .trailing)
                 GainLossText(amount: metric.holding.dailyChange ?? 0, percent: dayChangePercent, compact: true)
-                    .frame(width: 115, alignment: .trailing)
+                    .frame(width: 115, alignment: .center)
 
                 Menu {
                     Button("Edit", systemImage: "pencil", action: editAction)

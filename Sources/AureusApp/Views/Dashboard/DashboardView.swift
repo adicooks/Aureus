@@ -21,6 +21,14 @@ struct DashboardView: View {
         PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
     }
 
+    private var netWorthChartDomain: ClosedRange<Double> {
+        let upper = summary.totalNetWorth > 0 ? summary.totalNetWorth : (historySeries.map(\.totalValue).filter { $0.isFinite }.max() ?? 0)
+        guard upper > 0 else {
+            return 0...1
+        }
+        return 0...(upper * 1.2)
+    }
+
     private var recentActivities: [DashboardActivity] {
         let transactionActivities = transactions.map(DashboardActivity.transaction)
         let holdingActivities = holdings
@@ -28,8 +36,6 @@ struct DashboardView: View {
             .map(DashboardActivity.holding)
         return (transactionActivities + holdingActivities)
             .sorted { $0.date > $1.date }
-            .prefix(6)
-            .map { $0 }
     }
 
     var body: some View {
@@ -75,7 +81,7 @@ struct DashboardView: View {
 
     private var dashboardHero: some View {
         SectionCard(padding: 0) {
-            HStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -103,7 +109,8 @@ struct DashboardView: View {
                         Chart(historySeries) { point in
                             AreaMark(
                                 x: .value("Date", point.date, unit: .day),
-                                y: .value("Net Worth", point.totalValue)
+                                yStart: .value("Baseline", 0),
+                                yEnd: .value("Net Worth", point.totalValue)
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(.linearGradient(colors: [WorthlineTheme.positive.opacity(0.24), WorthlineTheme.positive.opacity(0.02)], startPoint: .top, endPoint: .bottom))
@@ -129,12 +136,14 @@ struct DashboardView: View {
                             }
                         }
                         .chartXAxis { AxisMarks(values: .automatic(desiredCount: 6)) }
+                        .chartYScale(domain: netWorthChartDomain)
                         .chartPlotStyle { plot in
                             plot
                                 .background(Color.white.opacity(0.015))
                         }
                         .animation(.smooth(duration: 0.25), value: range)
                         .frame(height: 250)
+                        .clipped()
                     }
                 }
                 .padding(28)
@@ -144,7 +153,9 @@ struct DashboardView: View {
 
                 AllocationPanel(summary: summary)
                     .frame(width: 420)
-                    .padding(28)
+                    .padding(.top, 28)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 28)
             }
         }
     }
@@ -296,7 +307,7 @@ private struct DashboardAssetsCard: View {
                             Text("Account")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Text("Change")
-                                .frame(width: 110, alignment: .trailing)
+                                .frame(width: 110, alignment: .center)
                             Text("Cost")
                                 .frame(width: 125, alignment: .trailing)
                             Text("Value")
@@ -340,7 +351,7 @@ private struct DashboardAssetRow: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
                 .background((metric.gainLoss >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative).opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .frame(width: 110, alignment: .trailing)
+                .frame(width: 110, alignment: .center)
 
             Text(metric.costBasis, format: Formatters.currency)
                 .font(.callout.weight(.semibold))
@@ -387,11 +398,14 @@ private struct DashboardTransactionsCard: View {
                         .foregroundStyle(WorthlineTheme.textSecondary)
                         .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
                 } else {
-                    VStack(spacing: 14) {
-                        ForEach(activities) { activity in
-                            DashboardTransactionRow(activity: activity)
+                    ScrollView {
+                        LazyVStack(spacing: 14) {
+                            ForEach(activities) { activity in
+                                DashboardTransactionRow(activity: activity)
+                            }
                         }
                     }
+                    .frame(maxHeight: 330)
                 }
             }
         }
@@ -402,13 +416,26 @@ private struct DashboardTransactionRow: View {
     let activity: DashboardActivity
 
     private var tint: Color {
-        amount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative
+        isPositiveActivity ? WorthlineTheme.positive : WorthlineTheme.negative
     }
 
     private var amount: Double {
         switch activity {
         case .transaction(let transaction): transaction.signedAmount
-        case .holding(let holding): -holding.costBasis
+        case .holding(let holding): holding.costBasis
+        }
+    }
+
+    private var displayAmount: Double {
+        isPositiveActivity ? abs(amount) : -abs(amount)
+    }
+
+    private var isPositiveActivity: Bool {
+        switch activity {
+        case .transaction(let transaction):
+            return transaction.presentationIsPositive
+        case .holding:
+            return true
         }
     }
 
@@ -450,7 +477,7 @@ private struct DashboardTransactionRow: View {
             .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(amount, format: Formatters.currency)
+                Text(displayAmount, format: Formatters.currency)
                     .font(.callout.weight(.bold))
                     .foregroundStyle(tint)
                     .monospacedDigit()

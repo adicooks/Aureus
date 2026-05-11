@@ -88,4 +88,19 @@ final class Transaction {
             return grossAmount - fees
         }
     }
+
+    var presentationIsPositive: Bool {
+        switch kind {
+        case .buy, .deposit, .dividend, .interest:
+            return true
+        case .sell, .withdrawal:
+            return false
+        case .adjustment:
+            return signedAmount >= 0
+        }
+    }
+
+    var presentationAmount: Double {
+        presentationIsPositive ? abs(signedAmount) : -abs(signedAmount)
+    }
 }
