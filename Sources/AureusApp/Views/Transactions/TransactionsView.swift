@@ -147,7 +147,7 @@ struct TransactionTable: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            label("Date", alignment: .leading).frame(width: 112, alignment: .leading)
+            label("Date", alignment: .leading).frame(width: 104, alignment: .leading)
             label("Type", alignment: .leading).frame(width: 110, alignment: .leading)
             label("Asset", alignment: .leading).frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
             label("Description", alignment: .leading).frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
@@ -158,9 +158,10 @@ struct TransactionTable: View {
                 Color.clear.frame(width: 26)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 5)
         .background(Color.secondary.opacity(0.08))
+        .frame(height: 36)
     }
 
     private func label(_ text: String, alignment: Alignment = .trailing) -> some View {
@@ -179,7 +180,9 @@ private struct TransactionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(transaction.date.formatted(Formatters.shortDate))
-                .frame(width: 112, alignment: .leading)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(width: 104, alignment: .leading)
             Label(transaction.kind.title, systemImage: transaction.kind.symbol)
                 .foregroundStyle(tint)
                 .frame(width: 110, alignment: .leading)
@@ -214,7 +217,7 @@ private struct TransactionRow: View {
         }
         .font(.callout)
         .monospacedDigit()
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .background(hovering ? WorthlineTheme.accent.opacity(0.08) : Color.clear)
         .onHover { hovering = $0 }

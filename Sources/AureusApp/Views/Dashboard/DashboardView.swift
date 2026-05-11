@@ -22,11 +22,28 @@ struct DashboardView: View {
     }
 
     private var netWorthChartDomain: ClosedRange<Double> {
-        let upper = summary.totalNetWorth > 0 ? summary.totalNetWorth : (historySeries.map(\.totalValue).filter { $0.isFinite }.max() ?? 0)
-        guard upper > 0 else {
+        let values = historySeries.map(\.totalValue).filter { $0.isFinite }
+        guard let minimum = values.min(), let maximum = values.max(), maximum > 0 else {
             return 0...1
         }
-        return 0...(upper * 1.2)
+        let spread = maximum - minimum
+        let padding = max(spread * 0.18, maximum * 0.015, 1)
+        return max(0, minimum - padding)...(maximum + padding)
+    }
+
+    private var netWorthChartXDomain: ClosedRange<Date>? {
+        range.chartDomain()
+    }
+
+    private var selectedRangeChange: (amount: Double, percent: Double) {
+        guard let first = historySeries.first, let last = historySeries.last, first.totalValue > 0 else {
+            return (
+                summary.dailyChange ?? summary.unrealizedGainLoss,
+                summary.dailyChangePercent ?? summary.unrealizedGainLossPercent
+            )
+        }
+        let amount = last.totalValue - first.totalValue
+        return (amount, amount / first.totalValue)
     }
 
     private var recentActivities: [DashboardActivity] {
@@ -93,7 +110,7 @@ struct DashboardView: View {
                                 .monospacedDigit()
                         }
                         Spacer()
-                        GainBadge(amount: summary.dailyChange ?? summary.unrealizedGainLoss, percent: summary.dailyChangePercent ?? summary.unrealizedGainLossPercent)
+                        GainBadge(amount: selectedRangeChange.amount, percent: selectedRangeChange.percent)
                     }
 
                     TimeRangePicker(selection: $range)
@@ -108,19 +125,26 @@ struct DashboardView: View {
                     } else {
                         Chart(historySeries) { point in
                             AreaMark(
-                                x: .value("Date", point.date, unit: .day),
-                                yStart: .value("Baseline", 0),
+                                x: .value("Date", point.date),
+                                yStart: .value("Baseline", netWorthChartDomain.lowerBound),
                                 yEnd: .value("Net Worth", point.totalValue)
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(.linearGradient(colors: [WorthlineTheme.positive.opacity(0.24), WorthlineTheme.positive.opacity(0.02)], startPoint: .top, endPoint: .bottom))
 
                             LineMark(
-                                x: .value("Date", point.date, unit: .day),
+                                x: .value("Date", point.date),
                                 y: .value("Net Worth", point.totalValue)
                             )
                             .interpolationMethod(.catmullRom)
                             .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                            .foregroundStyle(WorthlineTheme.positive)
+
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Net Worth", point.totalValue)
+                            )
+                            .symbolSize(historySeries.count == 1 ? 42 : 10)
                             .foregroundStyle(WorthlineTheme.positive)
                         }
                         .chartYAxis {
@@ -137,6 +161,7 @@ struct DashboardView: View {
                         }
                         .chartXAxis { AxisMarks(values: .automatic(desiredCount: 6)) }
                         .chartYScale(domain: netWorthChartDomain)
+                        .applyOptionalDateDomain(netWorthChartXDomain)
                         .chartPlotStyle { plot in
                             plot
                                 .background(Color.white.opacity(0.015))
@@ -408,6 +433,17 @@ private struct DashboardTransactionsCard: View {
                     .frame(maxHeight: 330)
                 }
             }
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyOptionalDateDomain(_ domain: ClosedRange<Date>?) -> some View {
+        if let domain {
+            self.chartXScale(domain: domain)
+        } else {
+            self
         }
     }
 }

@@ -56,8 +56,23 @@ struct HoldingsView: View {
     @State private var editingHolding: Holding?
     @State private var deleteCandidate: Holding?
 
+    private let quoteService = YahooFinanceService()
+
     private var summary: PortfolioSummary {
         PortfolioCalculator.summarize(holdings)
+    }
+
+    private var profileRefreshKey: String {
+        holdings.map {
+            [
+                $0.id.uuidString,
+                $0.ticker,
+                $0.logoURL ?? "",
+                $0.sector ?? "",
+                $0.industry ?? ""
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
     }
 
     private var filteredMetrics: [HoldingMetrics] {
@@ -137,6 +152,9 @@ struct HoldingsView: View {
             AssetEditorView(holding: holding)
                 .frame(minWidth: 560, minHeight: 620)
         }
+        .task(id: profileRefreshKey) {
+            await refreshMissingProfiles()
+        }
         .alert("Delete Asset?", isPresented: Binding(
             get: { deleteCandidate != nil },
             set: { if !$0 { deleteCandidate = nil } }
@@ -153,6 +171,22 @@ struct HoldingsView: View {
             }
         } message: {
             Text("This removes the holding, transactions, and local price history. This cannot be undone.")
+        }
+    }
+
+    @MainActor
+    private func refreshMissingProfiles() async {
+        var changed = false
+        for holding in holdings where holding.kind.isMarketPriced && !holding.ticker.isEmpty {
+            let needsProfile = holding.logoURL == nil || holding.sector == nil || holding.industry == nil || holding.website == nil
+            guard needsProfile else { continue }
+            if let profile = try? await quoteService.fetchProfile(for: holding.ticker) {
+                holding.apply(profile: profile)
+                changed = true
+            }
+        }
+        if changed {
+            try? modelContext.save()
         }
     }
 
@@ -266,7 +300,7 @@ struct HoldingsTable: View {
                 .foregroundStyle(summary.unrealizedGainLoss >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
                 .monospacedDigit()
                 .frame(width: 90, alignment: .trailing)
-            GainLossText(amount: summary.dailyChange ?? 0, percent: summary.dailyChangePercent, compact: true)
+            DayChangeCell(amount: summary.dailyChange, percent: summary.dailyChangePercent)
                 .frame(width: 115, alignment: .center)
             Color.clear.frame(width: 26)
         }
@@ -359,7 +393,7 @@ private struct HoldingTableRow: View {
                 Text(metric.gainLossPercent, format: Formatters.percent)
                     .foregroundStyle(metric.gainLoss >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
                     .frame(width: 90, alignment: .trailing)
-                GainLossText(amount: metric.holding.dailyChange ?? 0, percent: dayChangePercent, compact: true)
+                DayChangeCell(amount: metric.holding.dailyChange, percent: dayChangePercent)
                     .frame(width: 115, alignment: .center)
 
                 Menu {
@@ -383,6 +417,11 @@ private struct HoldingTableRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Open", systemImage: "arrow.up.right.square", action: openAction)
+            Button("Edit", systemImage: "pencil", action: editAction)
+            Button("Delete", systemImage: "trash", role: .destructive, action: deleteAction)
+        }
     }
 
     private var quantityText: String {
@@ -394,5 +433,27 @@ private struct HoldingTableRow: View {
     private var dayChangePercent: Double? {
         guard let previous = metric.holding.previousValue, previous > 0, let dailyChange = metric.holding.dailyChange else { return nil }
         return dailyChange / previous
+    }
+}
+
+private struct DayChangeCell: View {
+    let amount: Double?
+    let percent: Double?
+
+    var body: some View {
+        Group {
+            if let amount {
+                GainLossText(amount: amount, percent: percent, compact: true)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                Text("-")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(WorthlineTheme.textSecondary)
+                    .monospacedDigit()
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.72)
     }
 }

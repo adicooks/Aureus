@@ -34,4 +34,28 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(series.first?.totalValue ?? 0, 200, accuracy: 0.001)
         XCTAssertEqual(series.last?.totalValue ?? 0, 300, accuracy: 0.001)
     }
+
+    func testOneDayNetWorthHistoryUsesLocalDayStartAndPreviousClose() {
+        let calendar = Calendar.current
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let dayStart = calendar.startOfDay(for: now)
+        let purchaseDate = calendar.date(byAdding: .day, value: -10, to: dayStart)!
+        let stock = Holding(
+            kind: .stock,
+            name: "Example",
+            ticker: "EXM",
+            quantity: 10,
+            purchaseDate: purchaseDate,
+            purchasePrice: 90,
+            latestPrice: 105,
+            previousClose: 100
+        )
+
+        let series = PortfolioHistoryService.series(holdings: [stock], snapshots: [], range: .oneDay, now: now)
+
+        XCTAssertEqual(series.first?.date, dayStart)
+        XCTAssertEqual(series.first?.totalValue ?? 0, 1_000, accuracy: 0.001)
+        XCTAssertEqual(series.last?.date, now)
+        XCTAssertEqual(series.last?.totalValue ?? 0, 1_050, accuracy: 0.001)
+    }
 }

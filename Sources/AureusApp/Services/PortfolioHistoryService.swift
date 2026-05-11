@@ -20,7 +20,7 @@ enum PortfolioHistoryService {
             return synthesized
         }
 
-        return snapshots
+        let snapshotSeries = snapshots
             .filter { range.contains($0.date, relativeTo: now) }
             .sorted { $0.date < $1.date }
             .map {
@@ -31,6 +31,8 @@ enum PortfolioHistoryService {
                     unrealizedGainLoss: $0.unrealizedGainLoss
                 )
             }
+
+        return snapshotSeries.isEmpty ? synthesized : snapshotSeries
     }
 
     private static func synthesizedSeries(
@@ -44,10 +46,16 @@ enum PortfolioHistoryService {
         let calendar = Calendar.current
         var dates = Set<Date>()
         dates.insert(now)
+        if let rangeStart = range.startDate(relativeTo: now, calendar: calendar) {
+            dates.insert(rangeStart)
+        }
         let holdingsWithSnapshots = activeHoldings.map { holding in
             (holding: holding, snapshots: holding.priceSnapshots.sorted { $0.date < $1.date })
         }
         for holding in activeHoldings {
+            if range.contains(holding.purchaseDate, relativeTo: now) {
+                dates.insert(holding.purchaseDate)
+            }
             dates.insert(bucketedDate(holding.purchaseDate, calendar: calendar, range: range, now: now))
             holding.priceSnapshots.forEach {
                 dates.insert(bucketedDate($0.date, calendar: calendar, range: range, now: now))
@@ -58,7 +66,7 @@ enum PortfolioHistoryService {
             .filter { $0 <= now && range.contains($0, relativeTo: now) }
             .sorted()
             .map { date in
-                let values = holdingsWithSnapshots.map { value(for: $0.holding, snapshots: $0.snapshots, at: date, now: now) }
+                let values = holdingsWithSnapshots.map { value(for: $0.holding, snapshots: $0.snapshots, at: date, range: range, now: now) }
                 let total = values.reduce(0) { $0 + $1.currentValue }
                 let invested = values.reduce(0) { $0 + $1.costBasis }
                 return NetWorthHistoryPoint(
@@ -75,20 +83,28 @@ enum PortfolioHistoryService {
         for holding: Holding,
         snapshots: [PriceSnapshot],
         at date: Date,
+        range: TimeRange,
         now: Date
     ) -> (currentValue: Double, costBasis: Double) {
         guard date >= holding.purchaseDate else { return (0, 0) }
 
         switch holding.kind {
         case .stock, .etf, .crypto:
-            let price = marketPrice(for: holding, snapshots: snapshots, at: date, now: now)
+            let price = marketPrice(for: holding, snapshots: snapshots, at: date, range: range, now: now)
             return (max(0, holding.quantity * price), holding.costBasis)
         case .bond, .cash, .realEstate, .business, .collectible, .custom:
             return (holding.currentValue, holding.costBasis)
         }
     }
 
-    private static func marketPrice(for holding: Holding, snapshots: [PriceSnapshot], at date: Date, now: Date) -> Double {
+    private static func marketPrice(for holding: Holding, snapshots: [PriceSnapshot], at date: Date, range: TimeRange, now: Date) -> Double {
+        let calendar = Calendar.current
+        if range == .oneDay,
+           let dayStart = range.startDate(relativeTo: now, calendar: calendar),
+           abs(date.timeIntervalSince(dayStart)) < 1 {
+            return holding.previousClose ?? holding.latestPrice ?? holding.purchasePrice
+        }
+
         if Calendar.current.isDate(date, inSameDayAs: now), let latestPrice = holding.latestPrice {
             return latestPrice
         }

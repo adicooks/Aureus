@@ -1,4 +1,5 @@
 import Charts
+import AppKit
 import SwiftUI
 
 enum TimeRange: String, CaseIterable, Identifiable {
@@ -12,20 +13,39 @@ enum TimeRange: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     func contains(_ date: Date, relativeTo now: Date = .now) -> Bool {
-        switch self {
-        case .oneDay:
-            return date >= Calendar.current.date(byAdding: .day, value: -1, to: now) ?? date
-        case .oneWeek:
-            return date >= Calendar.current.date(byAdding: .day, value: -7, to: now) ?? date
-        case .oneMonth:
-            return date >= Calendar.current.date(byAdding: .month, value: -1, to: now) ?? date
-        case .threeMonths:
-            return date >= Calendar.current.date(byAdding: .month, value: -3, to: now) ?? date
-        case .oneYear:
-            return date >= Calendar.current.date(byAdding: .year, value: -1, to: now) ?? date
-        case .all:
+        guard let start = startDate(relativeTo: now) else {
             return true
         }
+        return date >= start
+    }
+
+    func startDate(relativeTo now: Date = .now, calendar: Calendar = .current) -> Date? {
+        let startOfToday = calendar.startOfDay(for: now)
+        switch self {
+        case .oneDay:
+            return startOfToday
+        case .oneWeek:
+            return calendar.date(byAdding: .day, value: -7, to: startOfToday)
+        case .oneMonth:
+            return calendar.date(byAdding: .month, value: -1, to: startOfToday)
+        case .threeMonths:
+            return calendar.date(byAdding: .month, value: -3, to: startOfToday)
+        case .oneYear:
+            return calendar.date(byAdding: .year, value: -1, to: startOfToday)
+        case .all:
+            return nil
+        }
+    }
+
+    func chartDomain(relativeTo now: Date = .now, calendar: Calendar = .current) -> ClosedRange<Date>? {
+        guard let start = startDate(relativeTo: now, calendar: calendar) else { return nil }
+        let end: Date
+        if self == .oneDay {
+            end = calendar.date(byAdding: .day, value: 1, to: start) ?? now
+        } else {
+            end = now
+        }
+        return start...max(end, start.addingTimeInterval(60))
     }
 }
 
@@ -125,10 +145,7 @@ struct StatCard: View {
                             .font(.caption.weight(.medium))
                             .foregroundStyle(WorthlineTheme.textSecondary)
                         if let help {
-                            Image(systemName: "info.circle")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(WorthlineTheme.textSecondary)
-                                .help(help)
+                            InfoHoverButton(help: help)
                         }
                     }
                     Text(value)
@@ -146,6 +163,28 @@ struct StatCard: View {
                 }
             }
         }
+    }
+}
+
+private struct InfoHoverButton: View {
+    let help: String
+    @State private var isHovering = false
+
+    var body: some View {
+        Image(systemName: "info.circle")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(WorthlineTheme.textSecondary)
+            .help(help)
+            .onHover { isHovering = $0 }
+            .popover(isPresented: $isHovering, arrowEdge: .bottom) {
+                Text(help)
+                    .font(.caption)
+                    .foregroundStyle(WorthlineTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 230, alignment: .leading)
+                    .padding(10)
+                    .presentationCompactAdaptation(.popover)
+            }
     }
 }
 
@@ -397,6 +436,8 @@ struct GainLossText: View {
         }
         .font(compact ? .caption.weight(.semibold) : .callout.weight(.semibold))
         .foregroundStyle(tint)
+        .lineLimit(1)
+        .minimumScaleFactor(0.72)
     }
 }
 
@@ -436,17 +477,37 @@ struct AllocationDonutChart: View {
 
 struct AssetIcon: View {
     let holding: Holding
+    @State private var sampledPalette: LogoPalette?
+
+    private var logoURLString: String? {
+        guard let logoURL = holding.logoURL, URL(string: logoURL) != nil else { return nil }
+        return logoURL
+    }
+
+    private var tileFill: Color {
+        if let sampledPalette {
+            return sampledPalette.color.opacity(sampledPalette.isLight ? 0.18 : 0.22)
+        }
+        return holding.kind.tint.opacity(0.14)
+    }
+
+    private var tileStroke: Color {
+        if let sampledPalette {
+            return sampledPalette.color.opacity(sampledPalette.isLight ? 0.70 : 0.52)
+        }
+        return holding.kind.tint.opacity(0.28)
+    }
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(holding.kind.tint.opacity(0.14))
+                .fill(tileFill)
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(holding.kind.tint.opacity(0.28), lineWidth: 0.9)
+                        .stroke(tileStroke, lineWidth: 0.9)
                 }
 
-            if let logoURL = holding.logoURL, let url = URL(string: logoURL) {
+            if let logoURLString, let url = URL(string: logoURLString) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -467,6 +528,10 @@ struct AssetIcon: View {
             }
         }
         .frame(width: 34, height: 34)
+        .id(logoURLString ?? holding.id.uuidString)
+        .task(id: logoURLString) {
+            await sampleLogoPalette(from: logoURLString)
+        }
     }
 
     private var initialsView: some View {
@@ -482,6 +547,108 @@ struct AssetIcon: View {
 
     private var usesDefaultAssetSymbol: Bool {
         holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond
+    }
+
+    @MainActor
+    private func sampleLogoPalette(from logoURLString: String?) async {
+        sampledPalette = nil
+        guard let logoURLString, let url = URL(string: logoURLString) else { return }
+        if let cached = LogoPaletteCache.shared.palette(for: logoURLString) {
+            sampledPalette = cached
+            return
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let palette = LogoPalette(data: data) else { return }
+            LogoPaletteCache.shared.set(palette, for: logoURLString)
+            sampledPalette = palette
+        } catch {
+            sampledPalette = nil
+        }
+    }
+}
+
+private struct LogoPalette: Equatable {
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    var color: Color {
+        Color(red: red, green: green, blue: blue)
+    }
+
+    var isLight: Bool {
+        (0.299 * red + 0.587 * green + 0.114 * blue) > 0.72
+    }
+
+    init?(data: Data) {
+        guard let image = NSImage(data: data),
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        let width = bitmap.pixelsWide
+        let height = bitmap.pixelsHigh
+        guard width > 0, height > 0 else { return nil }
+
+        let edgeColor = Self.averageColor(in: bitmap, width: width, height: height, edgesOnly: true)
+        let fallbackColor = Self.averageColor(in: bitmap, width: width, height: height, edgesOnly: false)
+        guard let color = edgeColor ?? fallbackColor else { return nil }
+        red = color.red
+        green = color.green
+        blue = color.blue
+    }
+
+    private static func averageColor(
+        in bitmap: NSBitmapImageRep,
+        width: Int,
+        height: Int,
+        edgesOnly: Bool
+    ) -> (red: Double, green: Double, blue: Double)? {
+        let maxSamplesPerAxis = 28
+        let xStride = max(1, width / maxSamplesPerAxis)
+        let yStride = max(1, height / maxSamplesPerAxis)
+        let edgeBand = max(1, min(width, height) / 8)
+        var red = 0.0
+        var green = 0.0
+        var blue = 0.0
+        var weightTotal = 0.0
+
+        for y in stride(from: 0, to: height, by: yStride) {
+            for x in stride(from: 0, to: width, by: xStride) {
+                if edgesOnly {
+                    let isEdge = x < edgeBand || x >= width - edgeBand || y < edgeBand || y >= height - edgeBand
+                    guard isEdge else { continue }
+                }
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                let alpha = color.alphaComponent
+                guard alpha > 0.15 else { continue }
+                red += color.redComponent * alpha
+                green += color.greenComponent * alpha
+                blue += color.blueComponent * alpha
+                weightTotal += alpha
+            }
+        }
+
+        guard weightTotal > 0 else { return nil }
+        return (red / weightTotal, green / weightTotal, blue / weightTotal)
+    }
+}
+
+private final class LogoPaletteCache {
+    static let shared = LogoPaletteCache()
+    private var values: [String: LogoPalette] = [:]
+
+    private init() {}
+
+    func palette(for key: String) -> LogoPalette? {
+        values[key]
+    }
+
+    func set(_ palette: LogoPalette, for key: String) {
+        values[key] = palette
     }
 }
 
@@ -513,6 +680,11 @@ struct AssetRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .contextMenu {
+            if let action {
+                Button("Open", systemImage: "arrow.up.right.square", action: action)
+            }
+        }
     }
 }
 

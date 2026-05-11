@@ -66,7 +66,18 @@ struct AureusApp: App {
             UserSettings.self,
             WatchlistItem.self
         ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let environment = ProcessInfo.processInfo.environment
+        let configuration: ModelConfiguration
+        if let storePath = environment["AUREUS_STORE_URL"], !storePath.isEmpty {
+            let storeURL = URL(fileURLWithPath: storePath)
+            try? FileManager.default.createDirectory(
+                at: storeURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            configuration = ModelConfiguration(schema: schema, url: storeURL)
+        } else {
+            configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        }
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {

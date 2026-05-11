@@ -88,6 +88,7 @@ struct RootView: View {
         }
         .task {
             ensureSettings()
+            seedSampleDataIfRequested()
             backfillInitialTransactionsIfNeeded()
             SnapshotService.saveDailySnapshotIfNeeded(holdings: holdings, snapshots: snapshots, context: modelContext)
         }
@@ -167,6 +168,13 @@ struct RootView: View {
             modelContext.insert(UserSettings())
             try? modelContext.save()
         }
+    }
+
+    private func seedSampleDataIfRequested() {
+        guard ProcessInfo.processInfo.environment["AUREUS_SEED_SAMPLE_DATA"] == "1", holdings.isEmpty else { return }
+        SampleData.holdings.forEach(modelContext.insert)
+        SampleData.snapshots.forEach(modelContext.insert)
+        try? modelContext.save()
     }
 
     private func backfillInitialTransactionsIfNeeded() {
