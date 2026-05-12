@@ -15,10 +15,7 @@ struct WatchlistView: View {
         items.map {
             [
                 $0.id.uuidString,
-                $0.ticker,
-                "\($0.latestPrice ?? 0)",
-                $0.logoURL ?? "",
-                "\($0.lastUpdated?.timeIntervalSince1970 ?? 0)"
+                $0.ticker
             ].joined(separator: ":")
         }
         .joined(separator: "|")
@@ -157,38 +154,19 @@ private struct WatchlistRow: View {
     }
 
     private var statusText: String {
-        if item.latestPrice == nil { return "Refresh needed" }
-        if item.previousClose == nil { return "No prior close" }
-        return item.lastUpdated?.formatted(Formatters.time) ?? "Live"
+        if item.latestPrice == nil { return "Fetching quote" }
+        if item.previousClose == nil { return item.lastUpdated == nil ? "Waiting for market data" : "Latest price only" }
+        return item.lastUpdated?.formatted(Formatters.time) ?? "Live quote"
     }
 
     var body: some View {
         HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(WorthlineTheme.accentSoft)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(WorthlineTheme.accent.opacity(0.26), lineWidth: 0.9)
-                    }
-
-                if let logoURL = item.logoURL, let url = URL(string: logoURL) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .padding(5)
-                        default:
-                            tickerInitials
-                        }
-                    }
-                } else {
-                    tickerInitials
-                }
-            }
-            .frame(width: 36, height: 36)
+            LogoTile(
+                logoURLString: item.logoURL.flatMap { URL(string: $0) == nil ? nil : $0 },
+                fallbackText: item.ticker,
+                fallbackTint: WorthlineTheme.accent,
+                size: 36
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.ticker)
@@ -240,12 +218,10 @@ private struct WatchlistRow: View {
         .padding(.vertical, 13)
         .background(hovering ? WorthlineTheme.accent.opacity(0.08) : Color.clear)
         .onHover { hovering = $0 }
-    }
-
-    private var tickerInitials: some View {
-        Text(String(item.ticker.prefix(2)))
-            .font(.caption.weight(.bold))
-            .foregroundStyle(WorthlineTheme.accent)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button("Remove", systemImage: "trash", role: .destructive, action: deleteAction)
+        }
     }
 }
 

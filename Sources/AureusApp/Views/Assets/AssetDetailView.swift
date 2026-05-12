@@ -9,6 +9,15 @@ enum AssetDetailTab: String, CaseIterable, Identifiable {
     case details = "Details"
 
     var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .overview: "square.grid.2x2"
+        case .transactions: "arrow.left.arrow.right"
+        case .chart: "chart.line.uptrend.xyaxis"
+        case .details: "list.bullet.rectangle"
+        }
+    }
 }
 
 private struct AssetPricePoint: Identifiable {
@@ -106,19 +115,17 @@ struct AssetDetailView: View {
                     .foregroundStyle(WorthlineTheme.textSecondary)
             }
             Spacer()
-            SecondaryButton(title: "Edit", symbol: "pencil") { showingEdit = true }
-            PrimaryButton(title: "Add Transaction", symbol: "plus") { showingTransactionEditor = true }
+            DetailHeaderButton(title: "Edit", symbol: "pencil") {
+                showingEdit = true
+            }
+            DetailHeaderButton(title: "Transaction", symbol: "plus", isProminent: true) {
+                showingTransactionEditor = true
+            }
         }
     }
 
     private var tabs: some View {
-        Picker("Detail Section", selection: $selectedTab) {
-            ForEach(AssetDetailTab.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
-            }
-        }
-        .pickerStyle(.segmented)
-        .frame(width: 420)
+        DetailTabBar(selection: $selectedTab)
     }
 
     @ViewBuilder
@@ -279,6 +286,68 @@ struct AssetDetailView: View {
             closeAction()
         } else {
             dismiss()
+        }
+    }
+}
+
+private struct DetailHeaderButton: View {
+    let title: String
+    let symbol: String
+    var isProminent = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 7)
+                .frame(minHeight: 30)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isProminent ? WorthlineTheme.accent : WorthlineTheme.textPrimary)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isProminent ? WorthlineTheme.accent.opacity(0.13) : Color.secondary.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isProminent ? WorthlineTheme.accent.opacity(0.28) : WorthlineTheme.border, lineWidth: 0.8)
+        }
+    }
+}
+
+private struct DetailTabBar: View {
+    @Binding var selection: AssetDetailTab
+
+    var body: some View {
+        HStack(spacing: 22) {
+            ForEach(AssetDetailTab.allCases) { tab in
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) {
+                        selection = tab
+                    }
+                } label: {
+                    VStack(spacing: 7) {
+                        Label(tab.rawValue, systemImage: tab.symbol)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(selection == tab ? WorthlineTheme.textPrimary : WorthlineTheme.textSecondary)
+                        Rectangle()
+                            .fill(selection == tab ? WorthlineTheme.accent : Color.clear)
+                            .frame(height: 2)
+                    }
+                    .frame(minWidth: 92)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 2)
+        .padding(.bottom, 4)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(WorthlineTheme.border)
+                .frame(height: 0.8)
         }
     }
 }

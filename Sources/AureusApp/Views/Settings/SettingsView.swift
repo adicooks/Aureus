@@ -16,6 +16,8 @@ struct SettingsView: View {
     @State private var showingSampleConfirmation = false
     @State private var showingClearDataConfirmation = false
     @State private var showingClearSnapshotsConfirmation = false
+    @State private var showingPasteImport = false
+    @State private var pastedCSV = ""
 
     private var activeSettings: UserSettings? {
         settings.first
@@ -50,6 +52,14 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This permanently removes saved net worth snapshots. Holdings, watchlist symbols, and transactions stay untouched.")
+        }
+        .sheet(isPresented: $showingPasteImport) {
+            CSVPasteImportView(csvText: $pastedCSV) {
+                importCSVText(pastedCSV)
+                pastedCSV = ""
+                showingPasteImport = false
+            }
+            .frame(minWidth: 640, minHeight: 520)
         }
     }
 
@@ -107,6 +117,10 @@ struct SettingsView: View {
                 HStack(spacing: 10) {
                     SecondaryButton(title: "Export CSV", symbol: "square.and.arrow.up", action: exportCSV)
                     SecondaryButton(title: "Import CSV", symbol: "square.and.arrow.down", action: importCSV)
+                    SecondaryButton(title: "Paste CSV", symbol: "doc.on.clipboard") {
+                        pastedCSV = ""
+                        showingPasteImport = true
+                    }
                     SecondaryButton(title: "Backup", symbol: "externaldrive", action: exportBackup)
                     SecondaryButton(title: "Restore", symbol: "arrow.clockwise.icloud", action: restoreBackup)
                     SecondaryButton(title: "Load Random Data", symbol: "wand.and.stars") {
@@ -174,13 +188,23 @@ struct SettingsView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let csv = try String(contentsOf: url, encoding: .utf8)
+            importCSVText(csv)
+        } catch {
+            statusMessage = "Unable to import CSV."
+        }
+    }
+
+    private func importCSVText(_ csv: String) {
+        do {
             let imported = try CSVService.parse(csv)
             let existingTickers = Set(holdings.map(\.ticker).filter { !$0.isEmpty })
+            var insertedCount = 0
             for holding in imported where holding.ticker.isEmpty || !existingTickers.contains(holding.ticker) {
                 modelContext.insert(holding)
+                insertedCount += 1
             }
             try modelContext.save()
-            statusMessage = "CSV imported."
+            statusMessage = insertedCount == 1 ? "1 holding imported." : "\(insertedCount) holdings imported."
         } catch {
             statusMessage = "Unable to import CSV."
         }
@@ -279,5 +303,56 @@ struct SettingsView: View {
         snapshots.forEach(modelContext.delete)
         try? modelContext.save()
         statusMessage = "All snapshots removed."
+    }
+}
+
+private struct CSVPasteImportView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var csvText: String
+    let importAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Paste CSV")
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    Text("Paste the same holdings CSV format used by file import.")
+                        .font(.callout)
+                        .foregroundStyle(WorthlineTheme.textSecondary)
+                }
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 30, height: 30)
+                        .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+
+            TextEditor(text: $csvText)
+                .font(.system(.callout, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(12)
+                .background(WorthlineTheme.fieldBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(WorthlineTheme.border, lineWidth: 0.8)
+                }
+
+            HStack {
+                Spacer()
+                SecondaryButton(title: "Cancel", symbol: "xmark") {
+                    dismiss()
+                }
+                PrimaryButton(title: "Import", symbol: "square.and.arrow.down", action: importAction)
+                    .disabled(csvText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(24)
+        .premiumPageBackground()
     }
 }

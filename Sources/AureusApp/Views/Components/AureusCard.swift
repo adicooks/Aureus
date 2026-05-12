@@ -148,15 +148,14 @@ struct StatCard: View {
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-                    if let detail {
-                        Text(detail)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(tint)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    }
+                    Text(detail ?? " ")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(detail == nil ? Color.clear : tint)
+                        .monospacedDigit()
+                        .lineLimit(1)
                 }
             }
+            .frame(minHeight: 92, alignment: .top)
         }
     }
 }
@@ -483,25 +482,53 @@ struct AllocationDonutChart: View {
 
 struct AssetIcon: View {
     let holding: Holding
-    @State private var sampledPalette: LogoPalette?
 
     private var logoURLString: String? {
         guard let logoURL = holding.logoURL, URL(string: logoURL) != nil else { return nil }
         return logoURL
     }
 
+    var body: some View {
+        LogoTile(
+            logoURLString: logoURLString,
+            fallbackText: initials,
+            fallbackTint: holding.kind.tint,
+            systemSymbol: usesDefaultAssetSymbol ? holding.kind.symbol : nil,
+            size: 34
+        )
+    }
+
+    private var initials: String {
+        let source = holding.ticker.isEmpty ? holding.name : holding.ticker
+        return String(source.prefix(2)).uppercased()
+    }
+
+    private var usesDefaultAssetSymbol: Bool {
+        holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond
+    }
+}
+
+struct LogoTile: View {
+    let logoURLString: String?
+    let fallbackText: String
+    let fallbackTint: Color
+    var systemSymbol: String?
+    var size: CGFloat = 34
+
+    @State private var sampledPalette: LogoPalette?
+
     private var tileFill: Color {
         if let sampledPalette {
             return sampledPalette.color.opacity(sampledPalette.isLight ? 0.18 : 0.22)
         }
-        return holding.kind.tint.opacity(0.14)
+        return fallbackTint.opacity(0.14)
     }
 
     private var tileStroke: Color {
         if let sampledPalette {
             return sampledPalette.color.opacity(sampledPalette.isLight ? 0.70 : 0.52)
         }
-        return holding.kind.tint.opacity(0.28)
+        return fallbackTint.opacity(0.28)
     }
 
     var body: some View {
@@ -522,37 +549,28 @@ struct AssetIcon: View {
                             .scaledToFit()
                             .padding(5)
                     default:
-                        initialsView
+                        fallbackView
                     }
                 }
-            } else if usesDefaultAssetSymbol {
-                Image(systemName: holding.kind.symbol)
+            } else if let systemSymbol {
+                Image(systemName: systemSymbol)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(holding.kind.tint)
+                    .foregroundStyle(fallbackTint)
             } else {
-                initialsView
+                fallbackView
             }
         }
-        .frame(width: 34, height: 34)
-        .id(logoURLString ?? holding.id.uuidString)
+        .frame(width: size, height: size)
+        .id(logoURLString ?? fallbackText)
         .task(id: logoURLString) {
             await sampleLogoPalette(from: logoURLString)
         }
     }
 
-    private var initialsView: some View {
-        Text(initials)
+    private var fallbackView: some View {
+        Text(String(fallbackText.prefix(2)).uppercased())
             .font(.caption.weight(.bold))
-            .foregroundStyle(holding.kind.tint)
-    }
-
-    private var initials: String {
-        let source = holding.ticker.isEmpty ? holding.name : holding.ticker
-        return String(source.prefix(2)).uppercased()
-    }
-
-    private var usesDefaultAssetSymbol: Bool {
-        holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond
+            .foregroundStyle(fallbackTint)
     }
 
     private func sampleLogoPalette(from logoURLString: String?) async {
