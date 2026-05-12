@@ -492,19 +492,34 @@ struct AssetIcon: View {
         LogoTile(
             logoURLString: logoURLString,
             fallbackText: initials,
-            fallbackTint: holding.kind.tint,
-            systemSymbol: usesDefaultAssetSymbol ? holding.kind.symbol : nil,
+            fallbackTint: fallbackTint,
+            systemSymbol: systemSymbol,
             size: 34
         )
     }
 
     private var initials: String {
+        if isGoldCommodity {
+            return "AU"
+        }
         let source = holding.ticker.isEmpty ? holding.name : holding.ticker
         return String(source.prefix(2)).uppercased()
     }
 
     private var usesDefaultAssetSymbol: Bool {
-        holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond
+        holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond || holding.kind == .commodity
+    }
+
+    private var isGoldCommodity: Bool {
+        holding.ticker.uppercased() == "GC=F" || holding.name.caseInsensitiveCompare("Gold") == .orderedSame
+    }
+
+    private var fallbackTint: Color {
+        isGoldCommodity ? Color(red: 0.95, green: 0.66, blue: 0.18) : holding.kind.tint
+    }
+
+    private var systemSymbol: String? {
+        usesDefaultAssetSymbol ? holding.kind.symbol : nil
     }
 }
 

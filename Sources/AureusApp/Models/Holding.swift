@@ -101,7 +101,12 @@ final class Holding {
     }
 
     var kind: AssetKind {
-        get { AssetKind(rawValue: kindRaw) ?? .custom }
+        get {
+            if ticker.uppercased() == "GC=F" {
+                return .commodity
+            }
+            return AssetKind(rawValue: kindRaw) ?? .custom
+        }
         set { kindRaw = newValue.rawValue }
     }
 
@@ -115,14 +120,14 @@ final class Holding {
             return max(0, principalAmount == 0 ? purchasePrice : purchasePrice) + fees
         case .cash, .realEstate, .business, .collectible, .custom:
             return purchasePrice + fees
-        case .stock, .etf, .crypto:
+        case .stock, .etf, .crypto, .commodity:
             return max(0, quantity * purchasePrice + fees)
         }
     }
 
     var currentValue: Double {
         switch kind {
-        case .stock, .etf, .crypto:
+        case .stock, .etf, .crypto, .commodity:
             return max(0, quantity * (latestPrice ?? purchasePrice))
         case .bond:
             return manualCurrentValue > 0 ? manualCurrentValue : principalAmount
@@ -161,7 +166,6 @@ final class Holding {
     }
 
     func apply(profile: MarketAssetProfile, at date: Date = .now, updateName: Bool = false) {
-        ticker = profile.symbol
         if updateName {
             if let longName = profile.longName, !longName.isEmpty {
                 name = longName

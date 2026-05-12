@@ -197,10 +197,13 @@ struct SettingsView: View {
     private func importCSVText(_ csv: String) {
         do {
             let imported = try CSVService.parse(csv)
-            let existingTickers = Set(holdings.map(\.ticker).filter { !$0.isEmpty })
             var insertedCount = 0
-            for holding in imported where holding.ticker.isEmpty || !existingTickers.contains(holding.ticker) {
+            for holding in imported {
                 modelContext.insert(holding)
+                modelContext.insert(initialImportTransaction(for: holding))
+                if let saleTransaction = saleImportTransaction(for: holding) {
+                    modelContext.insert(saleTransaction)
+                }
                 insertedCount += 1
             }
             try modelContext.save()
@@ -208,6 +211,59 @@ struct SettingsView: View {
         } catch {
             statusMessage = "Unable to import CSV."
         }
+    }
+
+    private func initialImportTransaction(for holding: Holding) -> Transaction {
+        Transaction(
+            kind: .buy,
+            date: holding.purchaseDate,
+            quantity: holding.kind.isMarketPriced ? holding.quantity : 0,
+            price: holding.kind.isMarketPriced ? holding.purchasePrice : holding.currentValue,
+            fees: holding.fees,
+            note: "Imported buy",
+            holding: holding
+        )
+    }
+
+    private func saleImportTransaction(for holding: Holding) -> Transaction? {
+        guard holding.isArchived else { return nil }
+        let details = importedSaleDetails(from: holding.notes)
+        return Transaction(
+            kind: .sell,
+            date: details.date ?? holding.updatedAt,
+            quantity: holding.kind.isMarketPriced ? holding.quantity : 0,
+            price: details.price ?? holding.purchasePrice,
+            fees: 0,
+            note: holding.notes.isEmpty ? "Imported sale" : holding.notes,
+            holding: holding
+        )
+    }
+
+    private func importedSaleDetails(from notes: String) -> (date: Date?, price: Double?) {
+        let pattern = #"(?i)sold\s+([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\s+at\s+\$?([0-9]+(?:\.[0-9]+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: notes, range: NSRange(notes.startIndex..., in: notes)) else {
+            return (nil, nil)
+        }
+
+        let date = Range(match.range(at: 1), in: notes)
+            .map { parseImportDate(String(notes[$0])) } ?? nil
+        let price = Range(match.range(at: 2), in: notes)
+            .flatMap { Double(notes[$0]) }
+        return (date, price)
+    }
+
+    private func parseImportDate(_ value: String) -> Date? {
+        for format in ["M/d/yyyy", "MM/dd/yyyy"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = .current
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) {
+                return date
+            }
+        }
+        return nil
     }
 
     private func exportBackup() {

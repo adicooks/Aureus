@@ -4,7 +4,6 @@ import SwiftUI
 struct AssetEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Holding.name) private var allHoldings: [Holding]
 
     private let holding: Holding?
 
@@ -219,13 +218,6 @@ struct AssetEditorView: View {
                 validationMessage = "Quantity must be greater than zero."
                 return
             }
-            let duplicate = allHoldings.contains { other in
-                other.id != holding?.id && other.kind == kind && other.ticker == cleanTicker
-            }
-            guard !duplicate else {
-                validationMessage = "That ticker is already in your holdings. Edit the existing asset or use advanced lots later."
-                return
-            }
         }
         if kind == .bond, principalAmount <= 0 {
             validationMessage = "Bond principal must be greater than zero."
@@ -389,7 +381,6 @@ struct AssetEditorView: View {
     }
 
     private func apply(profile: MarketAssetProfile) {
-        ticker = profile.symbol
         name = profile.longName ?? profile.shortName ?? name
         sector = profile.sector ?? sector
         industry = profile.industry ?? industry

@@ -49,7 +49,6 @@ final class WatchlistItem {
     }
 
     func apply(profile: MarketAssetProfile) {
-        ticker = profile.symbol
         name = profile.longName ?? profile.shortName ?? name
         sector = profile.sector
         industry = profile.industry

@@ -131,9 +131,6 @@ struct RootView: View {
             do {
                 let quote = try await quoteService.fetchQuote(for: holding.ticker)
                 holding.apply(price: quote)
-                if let profile = try? await quoteService.fetchProfile(for: holding.ticker) {
-                    holding.apply(profile: profile)
-                }
                 if let historyStart = Calendar.current.date(byAdding: .year, value: -1, to: .now) {
                     if let history = try? await quoteService.fetchPriceHistory(for: holding.ticker, from: min(holding.purchaseDate, historyStart)) {
                         insertMissingSnapshots(history, for: holding)
@@ -144,6 +141,7 @@ struct RootView: View {
                 failures.append("\(holding.ticker): \(error.localizedDescription)")
             }
         }
+        await refreshProfilesForRefreshableHoldings()
 
         do {
             try modelContext.save()
@@ -155,6 +153,36 @@ struct RootView: View {
             }
         } catch {
             showError("Unable to save refreshed prices.")
+        }
+    }
+
+    @MainActor
+    private func refreshProfilesForRefreshableHoldings() async {
+        let requests = holdings.compactMap { holding -> (UUID, String)? in
+            guard holding.kind.isMarketPriced, !holding.ticker.isEmpty else { return nil }
+            return (holding.id, holding.ticker)
+        }
+        guard !requests.isEmpty else { return }
+
+        var profilesByID: [UUID: MarketAssetProfile] = [:]
+        await withTaskGroup(of: (UUID, MarketAssetProfile)?.self) { group in
+            for request in requests {
+                group.addTask {
+                    let service = YahooFinanceService()
+                    guard let profile = try? await service.fetchProfile(for: request.1) else { return nil }
+                    return (request.0, profile)
+                }
+            }
+            for await result in group {
+                if let result {
+                    profilesByID[result.0] = result.1
+                }
+            }
+        }
+
+        for holding in holdings {
+            guard let profile = profilesByID[holding.id] else { continue }
+            holding.apply(profile: profile, updateName: holding.name == holding.ticker)
         }
     }
 

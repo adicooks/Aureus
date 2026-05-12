@@ -46,9 +46,10 @@ struct DashboardView: View {
     }
 
     private var recentActivities: [DashboardActivity] {
+        let transactionHoldingIDs = Set(transactions.compactMap { $0.holding?.id })
         let transactionActivities = transactions.map(DashboardActivity.transaction)
         let holdingActivities = holdings
-            .filter { !$0.isArchived }
+            .filter { !$0.isArchived && !transactionHoldingIDs.contains($0.id) }
             .map(DashboardActivity.holding)
         return (transactionActivities + holdingActivities)
             .sorted { $0.date > $1.date }
@@ -212,8 +213,10 @@ struct DashboardView: View {
     private var assetsAndTransactions: some View {
         HStack(alignment: .top, spacing: 20) {
             DashboardAssetsCard(metrics: summary.metrics)
+                .frame(height: 430)
             DashboardTransactionsCard(activities: recentActivities)
                 .frame(width: 410)
+                .frame(height: 430)
         }
     }
 
@@ -381,9 +384,12 @@ private struct DashboardAssetsCard: View {
                         ForEach(metrics.prefix(6)) { metric in
                             DashboardAssetRow(metric: metric)
                         }
+                        Spacer(minLength: 0)
                     }
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 }
@@ -465,9 +471,9 @@ private struct DashboardTransactionsCard: View {
                             }
                         }
                     }
-                    .frame(maxHeight: 330)
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 }
@@ -517,6 +523,13 @@ private struct DashboardTransactionRow: View {
         }
     }
 
+    private var holding: Holding? {
+        switch activity {
+        case .transaction(let transaction): transaction.holding
+        case .holding(let holding): holding
+        }
+    }
+
     private var title: String {
         switch activity {
         case .transaction(let transaction): transaction.kind.title
@@ -539,13 +552,18 @@ private struct DashboardTransactionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(tint.opacity(0.14))
-                Image(systemName: symbol)
-                    .foregroundStyle(tint)
+            if let holding {
+                AssetIcon(holding: holding)
+                    .frame(width: 42, height: 42)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(tint.opacity(0.14))
+                    Image(systemName: symbol)
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 42, height: 42)
             }
-            .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayAmount, format: Formatters.currency)

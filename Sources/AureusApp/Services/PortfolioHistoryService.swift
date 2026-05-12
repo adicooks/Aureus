@@ -143,7 +143,7 @@ private struct HoldingHistoryCursor {
         }
 
         switch holding.kind {
-        case .stock, .etf, .crypto:
+        case .stock, .etf, .crypto, .commodity:
             let price = marketPrice(at: date, range: range, now: now, calendar: calendar)
             return (max(0, holding.quantity * price), holding.costBasis)
         case .bond, .cash, .realEstate, .business, .collectible, .custom:

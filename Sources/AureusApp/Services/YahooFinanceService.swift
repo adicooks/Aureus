@@ -254,7 +254,7 @@ struct YahooFinanceService {
 
         guard let url = components.url else { throw QuoteError.invalidTicker }
         let decoded: TickerLogoSearchResponse = try await fetchJSON(url: url, timeout: 10)
-        guard let match = decoded.results.first(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }) ?? decoded.results.first else {
+        guard let match = decoded.results.first(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }) else {
             throw QuoteError.noPriceFound
         }
         return match

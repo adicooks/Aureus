@@ -26,6 +26,7 @@ enum HoldingFilter: String, CaseIterable, Hashable {
     case bond = "Bonds"
     case cash = "Cash"
     case crypto = "Crypto"
+    case commodity = "Commodities"
     case other = "Other"
 
     func includes(_ kind: AssetKind) -> Bool {
@@ -36,7 +37,8 @@ enum HoldingFilter: String, CaseIterable, Hashable {
         case .bond: kind == .bond
         case .cash: kind == .cash
         case .crypto: kind == .crypto
-        case .other: ![.stock, .etf, .bond, .cash, .crypto].contains(kind)
+        case .commodity: kind == .commodity
+        case .other: ![.stock, .etf, .bond, .cash, .crypto, .commodity].contains(kind)
         }
     }
 }
@@ -54,6 +56,7 @@ struct HoldingsView: View {
     @State private var sort: HoldingSort = .marketValue
     @State private var selectedHolding: Holding?
     @State private var editingHolding: Holding?
+    @State private var sellingHolding: Holding?
     @State private var deleteCandidate: Holding?
 
     private let quoteService = YahooFinanceService()
@@ -120,6 +123,7 @@ struct HoldingsView: View {
                         summary: summary,
                         openAction: { selectedHolding = $0 },
                         editAction: { editingHolding = $0 },
+                        sellAction: { sellingHolding = $0 },
                         deleteAction: { deleteCandidate = $0 }
                     )
                     .padding(.horizontal, 28)
@@ -150,6 +154,10 @@ struct HoldingsView: View {
             AssetEditorView(holding: holding)
                 .frame(minWidth: 560, minHeight: 620)
         }
+        .sheet(item: $sellingHolding) { holding in
+            TransactionEditorView(preselectedHolding: holding, initialKind: .sell)
+                .frame(minWidth: 520, minHeight: 520)
+        }
         .task(id: profileRefreshKey) {
             await refreshMissingProfiles()
         }
@@ -174,18 +182,35 @@ struct HoldingsView: View {
 
     @MainActor
     private func refreshMissingProfiles() async {
-        var changed = false
-        for holding in holdings where holding.kind.isMarketPriced && !holding.ticker.isEmpty {
+        let requests = holdings.compactMap { holding -> (UUID, String)? in
+            guard holding.kind.isMarketPriced, !holding.ticker.isEmpty else { return nil }
             let needsProfile = holding.logoURL == nil || holding.sector == nil || holding.industry == nil || holding.website == nil
-            guard needsProfile else { continue }
-            if let profile = try? await quoteService.fetchProfile(for: holding.ticker) {
-                holding.apply(profile: profile)
-                changed = true
+            return needsProfile ? (holding.id, holding.ticker) : nil
+        }
+        guard !requests.isEmpty else { return }
+
+        var profilesByID: [UUID: MarketAssetProfile] = [:]
+        await withTaskGroup(of: (UUID, MarketAssetProfile)?.self) { group in
+            for request in requests {
+                group.addTask {
+                    let service = YahooFinanceService()
+                    guard let profile = try? await service.fetchProfile(for: request.1) else { return nil }
+                    return (request.0, profile)
+                }
+            }
+            for await result in group {
+                if let result {
+                    profilesByID[result.0] = result.1
+                }
             }
         }
-        if changed {
-            try? modelContext.save()
+
+        guard !profilesByID.isEmpty else { return }
+        for holding in holdings {
+            guard let profile = profilesByID[holding.id] else { continue }
+            holding.apply(profile: profile, updateName: holding.name == holding.ticker)
         }
+        try? modelContext.save()
     }
 
     private var header: some View {
@@ -228,6 +253,7 @@ struct HoldingsTable: View {
     let summary: PortfolioSummary
     let openAction: (Holding) -> Void
     let editAction: (Holding) -> Void
+    let sellAction: (Holding) -> Void
     let deleteAction: (Holding) -> Void
 
     var body: some View {
@@ -250,6 +276,7 @@ struct HoldingsTable: View {
                                     metric: metric,
                                     openAction: { openAction(metric.holding) },
                                     editAction: { editAction(metric.holding) },
+                                    sellAction: { sellAction(metric.holding) },
                                     deleteAction: { deleteAction(metric.holding) }
                                 )
                                 Divider().opacity(0.55)
@@ -363,6 +390,7 @@ private struct HoldingTableRow: View {
     let metric: HoldingMetrics
     let openAction: () -> Void
     let editAction: () -> Void
+    let sellAction: () -> Void
     let deleteAction: () -> Void
     @State private var hovering = false
 
@@ -396,6 +424,7 @@ private struct HoldingTableRow: View {
 
                 Menu {
                     Button("Edit", systemImage: "pencil", action: editAction)
+                    Button("Record Sale", systemImage: "minus.circle", action: sellAction)
                     Button("Delete", systemImage: "trash", role: .destructive, action: deleteAction)
                 } label: {
                     Image(systemName: "ellipsis")
@@ -418,6 +447,7 @@ private struct HoldingTableRow: View {
         .contextMenu {
             Button("Open", systemImage: "arrow.up.right.square", action: openAction)
             Button("Edit", systemImage: "pencil", action: editAction)
+            Button("Record Sale", systemImage: "minus.circle", action: sellAction)
             Button("Delete", systemImage: "trash", role: .destructive, action: deleteAction)
         }
     }

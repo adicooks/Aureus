@@ -248,9 +248,11 @@ struct TransactionEditorView: View {
         case note
     }
 
-    init(preselectedHolding: Holding? = nil) {
+    init(preselectedHolding: Holding? = nil, initialKind: TransactionKind = .buy) {
+        _kind = State(initialValue: initialKind)
         _selectedHoldingID = State(initialValue: preselectedHolding?.id)
         _price = State(initialValue: preselectedHolding?.latestPrice ?? preselectedHolding?.purchasePrice ?? 0)
+        _quantity = State(initialValue: initialKind == .sell ? preselectedHolding?.quantity ?? 0 : 0)
     }
 
     var body: some View {
@@ -411,8 +413,10 @@ struct TransactionEditorView: View {
         case .sell:
             if selectedHolding.kind.isMarketPriced, transactionQuantity > 0 {
                 selectedHolding.quantity = max(0, selectedHolding.quantity - transactionQuantity)
+                selectedHolding.isArchived = selectedHolding.quantity == 0
             } else if !selectedHolding.kind.isMarketPriced {
                 selectedHolding.manualCurrentValue = max(0, selectedHolding.manualCurrentValue - gross)
+                selectedHolding.isArchived = selectedHolding.manualCurrentValue == 0
             }
         case .deposit:
             guard !selectedHolding.kind.isMarketPriced else { break }
