@@ -311,6 +311,12 @@ private struct CSVPasteImportView: View {
     @Binding var csvText: String
     let importAction: () -> Void
 
+    private let placeholder = """
+    kind,name,ticker,quantity,purchaseDate,purchasePrice,fees,currentValue,notes
+    stock,Apple,AAPL,10,2025-01-15T00:00:00Z,185,0,0,Long term
+    cash,Emergency Fund,,0,2025-01-15T00:00:00Z,5000,0,5000,High yield savings
+    """
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
@@ -333,15 +339,26 @@ private struct CSVPasteImportView: View {
                 .buttonStyle(.plain)
             }
 
-            TextEditor(text: $csvText)
-                .font(.system(.callout, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .padding(12)
-                .background(WorthlineTheme.fieldBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(WorthlineTheme.border, lineWidth: 0.8)
+            ZStack(alignment: .topLeading) {
+                if csvText.isEmpty {
+                    Text(placeholder)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(WorthlineTheme.textSecondary.opacity(0.55))
+                        .padding(18)
+                        .allowsHitTesting(false)
                 }
+
+                TextEditor(text: $csvText)
+                    .font(.system(.callout, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(12)
+                    .background(Color.clear)
+            }
+            .background(WorthlineTheme.fieldBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(WorthlineTheme.border, lineWidth: 0.8)
+            }
 
             HStack {
                 Spacer()

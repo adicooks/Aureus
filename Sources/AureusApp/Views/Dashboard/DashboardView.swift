@@ -12,13 +12,12 @@ struct DashboardView: View {
     let addAction: () -> Void
 
     @State private var range: TimeRange = .oneYear
+    @State private var historySeries: [NetWorthHistoryPoint] = []
+    @State private var chartNow = Date()
+    @State private var refreshTask: Task<Void, Never>?
 
     private var summary: PortfolioSummary {
         PortfolioCalculator.summarize(holdings)
-    }
-
-    private var historySeries: [NetWorthHistoryPoint] {
-        PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range)
     }
 
     private var netWorthChartDomain: ClosedRange<Double> {
@@ -32,7 +31,7 @@ struct DashboardView: View {
     }
 
     private var netWorthChartXDomain: ClosedRange<Date>? {
-        range.chartDomain()
+        range.chartDomain(relativeTo: chartNow)
     }
 
     private var selectedRangeChange: (amount: Double, percent: Double) {
@@ -53,6 +52,26 @@ struct DashboardView: View {
             .map(DashboardActivity.holding)
         return (transactionActivities + holdingActivities)
             .sorted { $0.date > $1.date }
+    }
+
+    private var holdingsVersion: String {
+        holdings.map {
+            [
+                $0.id.uuidString,
+                "\($0.quantity)",
+                "\($0.purchasePrice)",
+                "\($0.latestPrice ?? 0)",
+                "\($0.previousClose ?? 0)",
+                "\($0.updatedAt.timeIntervalSince1970)",
+                "\($0.priceSnapshots.count)"
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
+    }
+
+    private var snapshotsVersion: String {
+        snapshots.map { "\($0.id.uuidString):\($0.date.timeIntervalSince1970):\($0.totalValue)" }
+            .joined(separator: "|")
     }
 
     var body: some View {
@@ -80,6 +99,11 @@ struct DashboardView: View {
             .padding(.vertical, 34)
         }
         .premiumPageBackground()
+        .onAppear(perform: scheduleChartRefresh)
+        .onDisappear { refreshTask?.cancel() }
+        .onChange(of: range) { _, _ in scheduleChartRefresh() }
+        .onChange(of: holdingsVersion) { _, _ in scheduleChartRefresh() }
+        .onChange(of: snapshotsVersion) { _, _ in scheduleChartRefresh() }
     }
 
     private var header: some View {
@@ -203,6 +227,17 @@ struct DashboardView: View {
             return "\(prefix)$\((absolute / 1_000).formatted(.number.precision(.fractionLength(0...0))))K"
         }
         return "\(prefix)$\(absolute.formatted(.number.precision(.fractionLength(0...0))))"
+    }
+
+    private func scheduleChartRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(20))
+            guard !Task.isCancelled else { return }
+            let now = Date()
+            chartNow = now
+            historySeries = PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, now: now)
+        }
     }
 }
 
