@@ -39,12 +39,7 @@ enum TimeRange: String, CaseIterable, Identifiable {
 
     func chartDomain(relativeTo now: Date = .now, calendar: Calendar = .current) -> ClosedRange<Date>? {
         guard let start = startDate(relativeTo: now, calendar: calendar) else { return nil }
-        let end: Date
-        if self == .oneDay {
-            end = calendar.date(byAdding: .day, value: 1, to: start) ?? now
-        } else {
-            end = now
-        }
+        let end = now
         return start...max(end, start.addingTimeInterval(60))
     }
 }
@@ -174,16 +169,27 @@ private struct InfoHoverButton: View {
         Image(systemName: "info.circle")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(WorthlineTheme.textSecondary)
+            .padding(3)
+            .contentShape(Rectangle())
             .help(help)
             .onHover { isHovering = $0 }
-            .popover(isPresented: $isHovering, arrowEdge: .bottom) {
-                Text(help)
-                    .font(.caption)
-                    .foregroundStyle(WorthlineTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: 230, alignment: .leading)
-                    .padding(10)
-                    .presentationCompactAdaptation(.popover)
+            .overlay(alignment: .bottomLeading) {
+                if isHovering {
+                    Text(help)
+                        .font(.caption)
+                        .foregroundStyle(WorthlineTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: 238, alignment: .leading)
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(WorthlineTheme.border, lineWidth: 0.8)
+                        }
+                        .shadow(color: .black.opacity(0.24), radius: 14, y: 8)
+                        .offset(x: -8, y: 36)
+                        .zIndex(20)
+                }
             }
     }
 }
@@ -549,22 +555,31 @@ struct AssetIcon: View {
         holding.kind == .cash || holding.kind == .realEstate || holding.kind == .bond
     }
 
-    @MainActor
     private func sampleLogoPalette(from logoURLString: String?) async {
-        sampledPalette = nil
+        await MainActor.run {
+            sampledPalette = nil
+        }
         guard let logoURLString, let url = URL(string: logoURLString) else { return }
-        if let cached = LogoPaletteCache.shared.palette(for: logoURLString) {
-            sampledPalette = cached
+        if let cached = await MainActor.run(body: { LogoPaletteCache.shared.palette(for: logoURLString) }) {
+            await MainActor.run {
+                sampledPalette = cached
+            }
             return
         }
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            guard let palette = LogoPalette(data: data) else { return }
-            LogoPaletteCache.shared.set(palette, for: logoURLString)
-            sampledPalette = palette
+            guard let palette = await Task.detached(priority: .utility, operation: {
+                LogoPalette(data: data)
+            }).value else { return }
+            await MainActor.run {
+                LogoPaletteCache.shared.set(palette, for: logoURLString)
+                sampledPalette = palette
+            }
         } catch {
-            sampledPalette = nil
+            await MainActor.run {
+                sampledPalette = nil
+            }
         }
     }
 }
@@ -624,11 +639,13 @@ private struct LogoPalette: Equatable {
                 }
                 guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
                 let alpha = color.alphaComponent
-                guard alpha > 0.15 else { continue }
-                red += color.redComponent * alpha
-                green += color.greenComponent * alpha
-                blue += color.blueComponent * alpha
-                weightTotal += alpha
+                let compositedRed = color.redComponent * alpha + (1 - alpha)
+                let compositedGreen = color.greenComponent * alpha + (1 - alpha)
+                let compositedBlue = color.blueComponent * alpha + (1 - alpha)
+                red += compositedRed
+                green += compositedGreen
+                blue += compositedBlue
+                weightTotal += 1
             }
         }
 

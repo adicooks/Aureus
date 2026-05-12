@@ -66,10 +66,8 @@ struct HoldingsView: View {
         holdings.map {
             [
                 $0.id.uuidString,
-                $0.ticker,
-                $0.logoURL ?? "",
-                $0.sector ?? "",
-                $0.industry ?? ""
+                $0.kindRaw,
+                $0.ticker
             ].joined(separator: ":")
         }
         .joined(separator: "|")

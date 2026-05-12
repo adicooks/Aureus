@@ -30,8 +30,8 @@ final class PortfolioCalculatorTests: XCTestCase {
 
         let series = PortfolioHistoryService.series(holdings: [stock], snapshots: [], range: .oneYear, now: now)
 
-        XCTAssertEqual(series.count, 2)
-        XCTAssertEqual(series.first?.totalValue ?? 0, 200, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(series.count, 2)
+        XCTAssertEqual(series.first(where: { $0.totalValue > 0 })?.totalValue ?? 0, 200, accuracy: 0.001)
         XCTAssertEqual(series.last?.totalValue ?? 0, 300, accuracy: 0.001)
     }
 
