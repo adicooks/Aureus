@@ -213,10 +213,9 @@ struct DashboardView: View {
     private var assetsAndTransactions: some View {
         HStack(alignment: .top, spacing: 20) {
             DashboardAssetsCard(metrics: summary.metrics)
-                .frame(maxWidth: .infinity)
                 .frame(height: 430)
             DashboardTransactionsCard(activities: recentActivities)
-                .frame(maxWidth: .infinity)
+                .frame(width: 410)
                 .frame(height: 430)
         }
     }
@@ -384,15 +383,18 @@ private struct DashboardAssetsCard: View {
                         .textCase(.uppercase)
                         .padding(.bottom, 14)
 
-                        ForEach(metrics.prefix(6)) { metric in
-                            DashboardAssetRow(metric: metric)
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(metrics.prefix(6)) { metric in
+                                    DashboardAssetRow(metric: metric)
+                                }
+                            }
                         }
-                        Spacer(minLength: 0)
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 }
@@ -476,7 +478,7 @@ private struct DashboardTransactionsCard: View {
                     }
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 }
