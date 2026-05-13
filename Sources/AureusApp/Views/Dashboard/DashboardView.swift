@@ -213,9 +213,10 @@ struct DashboardView: View {
     private var assetsAndTransactions: some View {
         HStack(alignment: .top, spacing: 20) {
             DashboardAssetsCard(metrics: summary.metrics)
+                .frame(maxWidth: .infinity)
                 .frame(height: 430)
             DashboardTransactionsCard(activities: recentActivities)
-                .frame(width: 410)
+                .frame(maxWidth: .infinity)
                 .frame(height: 430)
         }
     }
@@ -278,7 +279,7 @@ private struct AllocationPanel: View {
             StackedAllocationBar(slices: summary.allocation)
                 .frame(height: 20)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 2), alignment: .leading, spacing: 18) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), alignment: .leading, spacing: 14) {
                 ForEach(summary.allocation.prefix(6)) { slice in
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 7) {
@@ -287,6 +288,8 @@ private struct AllocationPanel: View {
                                 .frame(width: 8, height: 8)
                             Text(slice.kind.title)
                                 .font(.callout.weight(.medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
                         }
                         Text(slice.percent, format: Formatters.percent)
                             .font(.callout)
