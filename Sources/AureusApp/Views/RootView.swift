@@ -51,6 +51,7 @@ struct RootView: View {
     @State private var errorMessage: String?
 
     private let quoteService = YahooFinanceService()
+    private let marketAutoRefreshInterval: TimeInterval = 900
 
     var body: some View {
         HStack(spacing: 0) {
@@ -91,6 +92,7 @@ struct RootView: View {
             seedSampleDataIfRequested()
             backfillInitialTransactionsIfNeeded()
             SnapshotService.saveDailySnapshotIfNeeded(holdings: holdings, snapshots: snapshots, context: modelContext)
+            await runMarketAutoRefreshLoop()
         }
         .onReceive(NotificationCenter.default.publisher(for: .aureusAddAsset)) { _ in
             showingAddAsset = true
@@ -122,6 +124,11 @@ struct RootView: View {
 
     @MainActor
     private func refreshPrices() async {
+        await refreshPrices(showStatus: true)
+    }
+
+    @MainActor
+    private func refreshPrices(showStatus: Bool) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
@@ -146,14 +153,35 @@ struct RootView: View {
         do {
             try modelContext.save()
             SnapshotService.saveSnapshot(holdings: holdings, context: modelContext, note: "Post-refresh snapshot")
-            if failures.isEmpty {
+            if failures.isEmpty, showStatus {
                 showMessage("Prices refreshed")
-            } else {
+            } else if !failures.isEmpty, showStatus {
                 showError("Some prices could not refresh. Cached values remain available.")
             }
         } catch {
-            showError("Unable to save refreshed prices.")
+            if showStatus {
+                showError("Unable to save refreshed prices.")
+            }
         }
+    }
+
+    @MainActor
+    private func runMarketAutoRefreshLoop() async {
+        while !Task.isCancelled {
+            if isRegularMarketOpen {
+                await refreshPrices(showStatus: false)
+            }
+            try? await Task.sleep(for: .seconds(marketAutoRefreshInterval))
+        }
+    }
+
+    private var isRegularMarketOpen: Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        let components = calendar.dateComponents([.weekday, .hour, .minute], from: .now)
+        guard let weekday = components.weekday, let hour = components.hour, let minute = components.minute else { return false }
+        let minutes = hour * 60 + minute
+        return (2...6).contains(weekday) && minutes >= 570 && minutes < 960
     }
 
     @MainActor

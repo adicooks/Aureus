@@ -79,21 +79,15 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 SectionHeader(title: "Preferences")
                 if let activeSettings {
-                    Picker("Automatic refresh", selection: Binding(
-                        get: { activeSettings.refreshInterval },
-                        set: { activeSettings.refreshInterval = $0; try? modelContext.save() }
-                    )) {
-                        ForEach(RefreshInterval.allCases) { interval in
-                            Text(interval.title).tag(interval)
-                        }
-                    }
-                    .controlSize(.large)
-
                     Toggle("Require local app lock", isOn: Binding(
                         get: { activeSettings.requireLocalLock },
                         set: { activeSettings.requireLocalLock = $0; try? modelContext.save() }
                     ))
                     .toggleStyle(.switch)
+
+                    Text("Prices update manually, and automatically every 15 minutes while regular U.S. markets are open.")
+                        .font(.caption)
+                        .foregroundStyle(WorthlineTheme.textSecondary)
 
                     Text("App lock is stored as a local preference and can be activated once signing and distribution settings are finalized.")
                         .font(.caption)

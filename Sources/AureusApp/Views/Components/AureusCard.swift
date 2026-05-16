@@ -775,7 +775,9 @@ struct MarketStatusCard: View {
     let refreshAction: () async -> Void
 
     private var isMarketOpen: Bool {
-        let components = Calendar.current.dateComponents([.weekday, .hour, .minute], from: .now)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        let components = calendar.dateComponents([.weekday, .hour, .minute], from: .now)
         guard let weekday = components.weekday, let hour = components.hour, let minute = components.minute else { return false }
         let minutes = hour * 60 + minute
         return (2...6).contains(weekday) && minutes >= 570 && minutes < 960
