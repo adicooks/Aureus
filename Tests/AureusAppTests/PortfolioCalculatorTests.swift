@@ -90,6 +90,28 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(series.first(where: { $0.date == buyDate })?.totalValue ?? 0, 200, accuracy: 0.001)
     }
 
+    func testOneYearNetWorthHistorySamplesAboutTwiceWeekly() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let purchaseDate = now.addingTimeInterval(-86_400 * 365)
+        let stock = Holding(kind: .stock, name: "Example", ticker: "EXM", quantity: 10, purchaseDate: purchaseDate, purchasePrice: 20, latestPrice: 30)
+
+        let series = PortfolioHistoryService.series(holdings: [stock], snapshots: [], range: .oneYear, now: now)
+
+        XCTAssertLessThanOrEqual(series.count, 108)
+        XCTAssertGreaterThanOrEqual(series.count, 102)
+    }
+
+    func testAllNetWorthHistorySamplesWeekly() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let purchaseDate = now.addingTimeInterval(-86_400 * 365)
+        let stock = Holding(kind: .stock, name: "Example", ticker: "EXM", quantity: 10, purchaseDate: purchaseDate, purchasePrice: 20, latestPrice: 30)
+
+        let series = PortfolioHistoryService.series(holdings: [stock], snapshots: [], range: .all, now: now)
+
+        XCTAssertLessThanOrEqual(series.count, 55)
+        XCTAssertGreaterThanOrEqual(series.count, 52)
+    }
+
     func testOneDayNetWorthHistoryUsesLocalDayStartAndPreviousClose() {
         let calendar = Calendar.current
         let now = Date(timeIntervalSince1970: 1_700_000_000)

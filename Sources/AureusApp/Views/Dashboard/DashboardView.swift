@@ -3,9 +3,11 @@ import SwiftData
 import SwiftUI
 
 struct DashboardView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Holding.name) private var holdings: [Holding]
     @Query(sort: \NetWorthSnapshot.date) private var snapshots: [NetWorthSnapshot]
     @Query(sort: \Transaction.date, order: .reverse) private var transactions: [Transaction]
+    @Query(sort: \ChartSeriesCache.updatedAt, order: .reverse) private var chartCaches: [ChartSeriesCache]
 
     let isRefreshing: Bool
     let refreshAction: () async -> Void
@@ -13,8 +15,10 @@ struct DashboardView: View {
 
     @State private var range: TimeRange = .oneYear
     @State private var historySeries: [NetWorthHistoryPoint] = []
+    @State private var selectedHistoryPoint: NetWorthHistoryPoint?
     @State private var chartNow = Date()
     @State private var refreshTask: Task<Void, Never>?
+    @State private var cacheWarmupTask: Task<Void, Never>?
 
     private var summary: PortfolioSummary {
         PortfolioCalculator.summarize(holdings)
@@ -90,6 +94,10 @@ struct DashboardView: View {
         .joined(separator: "|")
     }
 
+    private var chartDataVersion: String {
+        [holdingsVersion, snapshotsVersion, transactionsVersion].joined(separator: "||")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -115,12 +123,22 @@ struct DashboardView: View {
             .padding(.vertical, 34)
         }
         .premiumPageBackground()
-        .onAppear(perform: scheduleChartRefresh)
-        .onDisappear { refreshTask?.cancel() }
-        .onChange(of: range) { _, _ in scheduleChartRefresh() }
-        .onChange(of: holdingsVersion) { _, _ in scheduleChartRefresh() }
-        .onChange(of: snapshotsVersion) { _, _ in scheduleChartRefresh() }
-        .onChange(of: transactionsVersion) { _, _ in scheduleChartRefresh() }
+        .onAppear {
+            loadCachedHistorySeries()
+            scheduleChartRefresh(prewarmAll: true)
+        }
+        .onDisappear {
+            refreshTask?.cancel()
+            cacheWarmupTask?.cancel()
+        }
+        .onChange(of: range) { _, _ in
+            selectedHistoryPoint = nil
+            loadCachedHistorySeries()
+            scheduleChartRefresh()
+        }
+        .onChange(of: holdingsVersion) { _, _ in scheduleChartRefresh(prewarmAll: true) }
+        .onChange(of: snapshotsVersion) { _, _ in scheduleChartRefresh(prewarmAll: true) }
+        .onChange(of: transactionsVersion) { _, _ in scheduleChartRefresh(prewarmAll: true) }
     }
 
     private var header: some View {
@@ -187,6 +205,25 @@ struct DashboardView: View {
                             )
                             .symbolSize(historySeries.count == 1 ? 42 : 10)
                             .foregroundStyle(WorthlineTheme.positive)
+
+                            if let selectedHistoryPoint, selectedHistoryPoint.id == point.id {
+                                RuleMark(x: .value("Selected Date", selectedHistoryPoint.date))
+                                    .foregroundStyle(Color.white.opacity(0.22))
+                                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                PointMark(
+                                    x: .value("Selected Date", selectedHistoryPoint.date),
+                                    y: .value("Selected Net Worth", selectedHistoryPoint.totalValue)
+                                )
+                                .symbolSize(84)
+                                .foregroundStyle(WorthlineTheme.positive)
+                                .annotation(position: .top, alignment: .center, spacing: 8) {
+                                    ChartTraceLabel(
+                                        title: selectedHistoryPoint.totalValue.formatted(Formatters.currency),
+                                        subtitle: selectedHistoryPoint.date.formatted(Formatters.compactDate),
+                                        tint: WorthlineTheme.positive
+                                    )
+                                }
+                            }
                         }
                         .chartYAxis {
                             AxisMarks(position: .trailing) { value in
@@ -206,6 +243,22 @@ struct DashboardView: View {
                         .chartPlotStyle { plot in
                             plot
                                 .background(Color.white.opacity(0.015))
+                        }
+                        .chartOverlay { proxy in
+                            GeometryReader { geometry in
+                                Rectangle()
+                                    .fill(.clear)
+                                    .contentShape(Rectangle())
+                                    .gesture(chartTraceGesture(proxy: proxy, geometry: geometry))
+                                    .onContinuousHover { phase in
+                                        switch phase {
+                                        case .active(let location):
+                                            updateSelectedHistoryPoint(at: location, proxy: proxy, geometry: geometry)
+                                        case .ended:
+                                            selectedHistoryPoint = nil
+                                        }
+                                    }
+                            }
                         }
                         .animation(.smooth(duration: 0.25), value: range)
                         .frame(height: 250)
@@ -248,18 +301,33 @@ struct DashboardView: View {
         return "\(prefix)$\(absolute.formatted(.number.precision(.fractionLength(0...0))))"
     }
 
-    private func scheduleChartRefresh() {
+    private func scheduleChartRefresh(prewarmAll: Bool = false) {
         refreshTask?.cancel()
+        cacheWarmupTask?.cancel()
+        let targetRange = range
+        let dataVersion = chartDataVersion
         refreshTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(20))
+            try? await Task.sleep(for: .milliseconds(80))
             guard !Task.isCancelled else { return }
             let now = Date()
             chartNow = now
-            historySeries = dashboardHistorySeries(now: now)
+            if prewarmAll {
+                warmPortfolioHistoryCache(now: now, dataVersion: dataVersion)
+            } else if PortfolioHistoryService.cachedSeries(for: targetRange, dataVersion: dataVersion, caches: chartCaches) == nil {
+                let series = dashboardHistorySeries(for: targetRange, now: now)
+                PortfolioHistoryService.saveCachedSeries(series, for: targetRange, dataVersion: dataVersion, caches: chartCaches, context: modelContext)
+                if range == targetRange {
+                    historySeries = series
+                }
+            }
         }
     }
 
     private func dashboardHistorySeries(now: Date) -> [NetWorthHistoryPoint] {
+        dashboardHistorySeries(for: range, now: now)
+    }
+
+    private func dashboardHistorySeries(for range: TimeRange, now: Date) -> [NetWorthHistoryPoint] {
         let series = PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, transactions: transactions, now: now)
         guard series.count < 2, summary.totalNetWorth > 0 else { return series }
         let startDate = range.startDate(relativeTo: now) ?? now.addingTimeInterval(-86_400)
@@ -277,6 +345,43 @@ struct DashboardView: View {
                 unrealizedGainLoss: summary.unrealizedGainLoss
             )
         ]
+    }
+
+    private func loadCachedHistorySeries() {
+        if let cachedSeries = PortfolioHistoryService.cachedSeries(for: range, dataVersion: chartDataVersion, caches: chartCaches) {
+            historySeries = cachedSeries
+        }
+    }
+
+    private func warmPortfolioHistoryCache(now: Date, dataVersion: String) {
+        cacheWarmupTask?.cancel()
+        cacheWarmupTask = Task { @MainActor in
+            for rangeToWarm in TimeRange.allCases {
+                guard !Task.isCancelled else { return }
+                let series = dashboardHistorySeries(for: rangeToWarm, now: now)
+                PortfolioHistoryService.saveCachedSeries(series, for: rangeToWarm, dataVersion: dataVersion, caches: chartCaches, context: modelContext)
+                if range == rangeToWarm {
+                    historySeries = series
+                }
+                await Task.yield()
+            }
+        }
+    }
+
+    private func chartTraceGesture(proxy: ChartProxy, geometry: GeometryProxy) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                updateSelectedHistoryPoint(at: value.location, proxy: proxy, geometry: geometry)
+            }
+    }
+
+    private func updateSelectedHistoryPoint(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else { return }
+        let relativeX = location.x - plotRect.origin.x
+        guard let date: Date = proxy.value(atX: relativeX) else { return }
+        selectedHistoryPoint = historySeries.nearest(to: date, by: \.date)
     }
 }
 

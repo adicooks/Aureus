@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct NetWorthHistoryPoint: Identifiable, Equatable {
     var id: Date { date }
@@ -9,6 +10,8 @@ struct NetWorthHistoryPoint: Identifiable, Equatable {
 }
 
 enum PortfolioHistoryService {
+    private static let cacheNamespace = "portfolioHistory"
+
     static func series(
         holdings: [Holding],
         snapshots: [NetWorthSnapshot],
@@ -38,6 +41,60 @@ enum PortfolioHistoryService {
         }
 
         return snapshotSeries.isEmpty ? synthesized : snapshotSeries
+    }
+
+    static func cachedSeries(
+        for range: TimeRange,
+        dataVersion: String,
+        caches: [ChartSeriesCache]
+    ) -> [NetWorthHistoryPoint]? {
+        let key = cacheKey(for: range)
+        guard let cache = caches.first(where: { $0.key == key && $0.dataVersion == dataVersion }) else {
+            return nil
+        }
+        guard let payload = try? JSONDecoder().decode(ChartSeriesCachePayload.self, from: cache.payloadData) else {
+            return nil
+        }
+        return payload.points.map(\.historyPoint).sorted { $0.date < $1.date }
+    }
+
+    @MainActor
+    static func saveCachedSeries(
+        _ series: [NetWorthHistoryPoint],
+        for range: TimeRange,
+        dataVersion: String,
+        caches: [ChartSeriesCache],
+        context: ModelContext
+    ) {
+        let key = cacheKey(for: range)
+        let payload = ChartSeriesCachePayload(points: series.map(CachedNetWorthHistoryPoint.init))
+        guard let payloadData = try? JSONEncoder().encode(payload) else { return }
+
+        var descriptor = FetchDescriptor<ChartSeriesCache>(
+            predicate: #Predicate { $0.key == key }
+        )
+        descriptor.fetchLimit = 1
+        let persistedCache = (try? context.fetch(descriptor))?.first
+
+        if let cache = caches.first(where: { $0.key == key }) ?? persistedCache {
+            cache.rangeRaw = range.rawValue
+            cache.dataVersion = dataVersion
+            cache.updatedAt = .now
+            cache.payloadData = payloadData
+        } else {
+            context.insert(ChartSeriesCache(
+                key: key,
+                namespace: cacheNamespace,
+                rangeRaw: range.rawValue,
+                dataVersion: dataVersion,
+                payloadData: payloadData
+            ))
+        }
+        try? context.save()
+    }
+
+    static func cacheKey(for range: TimeRange) -> String {
+        "\(cacheNamespace):\(range.rawValue)"
     }
 
     private static func hasMultipleSnapshotDays(_ series: [NetWorthHistoryPoint], calendar: Calendar = .current) -> Bool {
@@ -108,9 +165,8 @@ enum PortfolioHistoryService {
         var guardCount = 0
 
         while cursor < now && guardCount < 420 {
-            guard let next = calendar.date(byAdding: step.component, value: step.value, to: cursor), next > cursor else {
-                break
-            }
+            let next = cursor.addingTimeInterval(step)
+            guard next > cursor else { break }
             if next < now {
                 dates.append(next)
             }
@@ -137,16 +193,16 @@ enum PortfolioHistoryService {
         return source.sorted { $0.date < $1.date }
     }
 
-    private static func timelineStep(for range: TimeRange) -> (component: Calendar.Component, value: Int) {
+    private static func timelineStep(for range: TimeRange) -> TimeInterval {
         switch range {
         case .oneDay:
-            return (.day, 1)
+            return 86_400
         case .oneWeek, .oneMonth, .threeMonths:
-            return (.day, 1)
+            return 86_400
         case .oneYear:
-            return (.weekOfYear, 1)
+            return 86_400 * 3.5
         case .all:
-            return (.month, 1)
+            return 86_400 * 7
         }
     }
 }

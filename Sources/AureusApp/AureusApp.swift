@@ -64,7 +64,8 @@ struct AureusApp: App {
             NetWorthSnapshot.self,
             Transaction.self,
             UserSettings.self,
-            WatchlistItem.self
+            WatchlistItem.self,
+            ChartSeriesCache.self
         ])
         let environment = ProcessInfo.processInfo.environment
         let configuration: ModelConfiguration

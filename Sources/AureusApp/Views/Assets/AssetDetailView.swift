@@ -37,6 +37,7 @@ struct AssetDetailView: View {
     @State private var confirmDelete = false
     @State private var selectedTab: AssetDetailTab = .overview
     @State private var range: TimeRange = .oneYear
+    @State private var selectedPricePoint: AssetPricePoint?
 
     private var visiblePricePoints: [AssetPricePoint] {
         pricePoints.filter { range.contains($0.date) }
@@ -88,6 +89,9 @@ struct AssetDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes the asset, transactions, and local history.")
+        }
+        .onChange(of: range) { _, _ in
+            selectedPricePoint = nil
         }
     }
 
@@ -182,8 +186,43 @@ struct AssetDetailView: View {
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                     .foregroundStyle(holding.kind.tint)
+
+                    if let selectedPricePoint, selectedPricePoint.id == point.id {
+                        RuleMark(x: .value("Selected Date", selectedPricePoint.date))
+                            .foregroundStyle(Color.white.opacity(0.22))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        PointMark(
+                            x: .value("Selected Date", selectedPricePoint.date),
+                            y: .value("Selected Price", selectedPricePoint.price)
+                        )
+                        .symbolSize(84)
+                        .foregroundStyle(holding.kind.tint)
+                        .annotation(position: .top, alignment: .center, spacing: 8) {
+                            ChartTraceLabel(
+                                title: selectedPricePoint.price.formatted(Formatters.currency),
+                                subtitle: selectedPricePoint.date.formatted(Formatters.compactDate),
+                                tint: holding.kind.tint
+                            )
+                        }
+                    }
                 }
                 .chartYAxis { AxisMarks(position: .leading) }
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .gesture(priceChartTraceGesture(proxy: proxy, geometry: geometry))
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case .active(let location):
+                                    updateSelectedPricePoint(at: location, proxy: proxy, geometry: geometry)
+                                case .ended:
+                                    selectedPricePoint = nil
+                                }
+                            }
+                    }
+                }
                 .frame(height: 300)
             }
         }
@@ -287,6 +326,22 @@ struct AssetDetailView: View {
         } else {
             dismiss()
         }
+    }
+
+    private func priceChartTraceGesture(proxy: ChartProxy, geometry: GeometryProxy) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                updateSelectedPricePoint(at: value.location, proxy: proxy, geometry: geometry)
+            }
+    }
+
+    private func updateSelectedPricePoint(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let plotRect = geometry[plotFrame]
+        guard plotRect.contains(location) else { return }
+        let relativeX = location.x - plotRect.origin.x
+        guard let date: Date = proxy.value(atX: relativeX) else { return }
+        selectedPricePoint = visiblePricePoints.nearest(to: date, by: \.date)
     }
 }
 
