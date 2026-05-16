@@ -24,8 +24,6 @@ enum HoldingFilter: String, CaseIterable, Hashable {
     case stock = "Stocks"
     case etf = "ETFs"
     case bond = "Bonds"
-    case cash = "Cash"
-    case crypto = "Crypto"
     case commodity = "Commodities"
     case other = "Other"
 
@@ -35,10 +33,8 @@ enum HoldingFilter: String, CaseIterable, Hashable {
         case .stock: kind == .stock
         case .etf: kind == .etf
         case .bond: kind == .bond
-        case .cash: kind == .cash
-        case .crypto: kind == .crypto
         case .commodity: kind == .commodity
-        case .other: ![.stock, .etf, .bond, .cash, .crypto, .commodity].contains(kind)
+        case .other: ![.stock, .etf, .bond, .commodity, .cash, .crypto].contains(kind)
         }
     }
 }
@@ -62,7 +58,28 @@ struct HoldingsView: View {
     private let quoteService = YahooFinanceService()
 
     private var summary: PortfolioSummary {
-        PortfolioCalculator.summarize(holdings)
+        PortfolioCalculator.summarize(visibleHoldings)
+    }
+
+    private var visibleHoldings: [Holding] {
+        holdings.filter { $0.kind != .cash && $0.kind != .crypto }
+    }
+
+    private var filteredHoldings: [Holding] {
+        var items = visibleHoldings.filter { filter.includes($0.kind) }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty {
+            items = items.filter {
+                $0.name.localizedCaseInsensitiveContains(query)
+                || $0.ticker.localizedCaseInsensitiveContains(query)
+                || $0.kind.title.localizedCaseInsensitiveContains(query)
+            }
+        }
+        return items
+    }
+
+    private var filteredSummary: PortfolioSummary {
+        PortfolioCalculator.summarize(filteredHoldings)
     }
 
     private var profileRefreshKey: String {
@@ -77,15 +94,7 @@ struct HoldingsView: View {
     }
 
     private var filteredMetrics: [HoldingMetrics] {
-        var metrics = summary.metrics.filter { filter.includes($0.holding.kind) }
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !query.isEmpty {
-            metrics = metrics.filter {
-                $0.holding.name.localizedCaseInsensitiveContains(query)
-                || $0.holding.ticker.localizedCaseInsensitiveContains(query)
-                || $0.holding.kind.title.localizedCaseInsensitiveContains(query)
-            }
-        }
+        let metrics = filteredSummary.metrics
 
         switch sort {
         case .marketValue:
@@ -104,7 +113,7 @@ struct HoldingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
 
-                if holdings.isEmpty {
+                if visibleHoldings.isEmpty {
                     SectionCard {
                         EmptyStateView(
                             title: "No holdings yet",
@@ -120,7 +129,7 @@ struct HoldingsView: View {
                     controls
                     HoldingsTable(
                         metrics: filteredMetrics,
-                        summary: summary,
+                        summary: filteredSummary,
                         openAction: { selectedHolding = $0 },
                         editAction: { editingHolding = $0 },
                         sellAction: { sellingHolding = $0 },
@@ -218,7 +227,7 @@ struct HoldingsView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Holdings")
                     .font(.system(size: 30, weight: .semibold, design: .rounded))
-                Text("\(holdings.count) assets · \(summary.totalNetWorth.formatted(Formatters.currency))")
+                Text("\(visibleHoldings.filter { !$0.isArchived }.count) assets · \(summary.totalNetWorth.formatted(Formatters.currency))")
                     .font(.callout)
                     .foregroundStyle(WorthlineTheme.textSecondary)
             }
