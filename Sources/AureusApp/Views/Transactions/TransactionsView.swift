@@ -187,6 +187,22 @@ struct TransactionsView: View {
 private struct CompletedStockTradeTable: View {
     let trades: [CompletedStockTrade]
 
+    private var totalSellQuantity: Double {
+        trades.reduce(0) { $0 + $1.sellQuantity }
+    }
+
+    private var totalSoldAmount: Double {
+        trades.reduce(0) { $0 + $1.soldAmount }
+    }
+
+    private var averageSellPrice: Double {
+        totalSellQuantity > 0 ? totalSoldAmount / totalSellQuantity : 0
+    }
+
+    private var totalRealizedAmount: Double {
+        trades.reduce(0) { $0 + $1.realizedAmount }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -198,24 +214,58 @@ private struct CompletedStockTradeTable: View {
                     }
                 }
             }
+            totalRow
         }
     }
 
     private var header: some View {
         HStack(spacing: 12) {
-            label("Sold", alignment: .leading).frame(width: 104, alignment: .leading)
-            label("Type", alignment: .leading).frame(width: 130, alignment: .leading)
+            label("Date", alignment: .leading).frame(width: 104, alignment: .leading)
+            label("Type", alignment: .leading).frame(width: 110, alignment: .leading)
             label("Asset", alignment: .leading).frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
-            label("Details", alignment: .leading).frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
-            label("Shares").frame(width: 95, alignment: .trailing)
-            label("Buy Avg").frame(width: 105, alignment: .trailing)
-            label("Sell Avg").frame(width: 105, alignment: .trailing)
+            label("Description", alignment: .leading).frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+            label("Quantity").frame(width: 95, alignment: .trailing)
+            label("Price").frame(width: 105, alignment: .trailing)
             label("Gain/Loss").frame(width: 120, alignment: .trailing)
+            Color.clear.frame(width: 26)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 5)
         .background(Color.secondary.opacity(0.08))
         .frame(height: 36)
+    }
+
+    private var totalRow: some View {
+        HStack(spacing: 12) {
+            Text("Total")
+                .font(.callout.weight(.bold))
+                .frame(width: 104, alignment: .leading)
+            Color.clear.frame(width: 110)
+            Color.clear.frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
+            Text("\(trades.count) completed trades")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(WorthlineTheme.textSecondary)
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+            Text(totalSellQuantity.formatted(Formatters.number))
+                .font(.callout.weight(.bold))
+                .monospacedDigit()
+                .frame(width: 95, alignment: .trailing)
+            Text(averageSellPrice == 0 ? "-" : averageSellPrice.formatted(Formatters.currency))
+                .font(.callout.weight(.bold))
+                .monospacedDigit()
+                .frame(width: 105, alignment: .trailing)
+            Text(totalRealizedAmount, format: Formatters.currency)
+                .font(.callout.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(totalRealizedAmount >= 0 ? WorthlineTheme.positive : WorthlineTheme.negative)
+                .frame(width: 120, alignment: .trailing)
+            Color.clear.frame(width: 26)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) { Divider() }
+        .frame(height: 54)
     }
 
     private func label(_ text: String, alignment: Alignment = .trailing) -> some View {
@@ -238,24 +288,23 @@ private struct CompletedStockTradeRow: View {
                 .frame(width: 104, alignment: .leading)
             Label("Bought & Sold", systemImage: "arrow.left.arrow.right.circle")
                 .foregroundStyle(trade.isGain ? WorthlineTheme.positive : WorthlineTheme.negative)
-                .frame(width: 130, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
             Text(trade.holding.displayTicker)
                 .fontWeight(.semibold)
                 .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
             Text(trade.description)
                 .foregroundStyle(WorthlineTheme.textSecondary)
                 .lineLimit(1)
-                .frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
             Text(trade.sellQuantity.formatted(Formatters.number))
                 .frame(width: 95, alignment: .trailing)
-            Text(trade.averageBuyPrice == 0 ? "-" : trade.averageBuyPrice.formatted(Formatters.currency))
-                .frame(width: 105, alignment: .trailing)
             Text(trade.averageSellPrice == 0 ? "-" : trade.averageSellPrice.formatted(Formatters.currency))
                 .frame(width: 105, alignment: .trailing)
             Text(trade.realizedAmount, format: Formatters.currency)
                 .foregroundStyle(trade.isGain ? WorthlineTheme.positive : WorthlineTheme.negative)
                 .fontWeight(.semibold)
                 .frame(width: 120, alignment: .trailing)
+            Color.clear.frame(width: 26)
         }
         .font(.callout)
         .monospacedDigit()
@@ -270,6 +319,26 @@ struct TransactionTable: View {
     let transactions: [Transaction]
     var deleteAction: ((Transaction) -> Void)?
 
+    private var totalQuantity: Double {
+        transactions.reduce(0) { $0 + $1.quantity }
+    }
+
+    private var totalGrossAmount: Double {
+        transactions.reduce(0) { $0 + $1.grossAmount }
+    }
+
+    private var averagePrice: Double {
+        totalQuantity > 0 ? totalGrossAmount / totalQuantity : 0
+    }
+
+    private var totalPresentationAmount: Double {
+        transactions.reduce(0) { $0 + $1.presentationAmount }
+    }
+
+    private var totalIsPositive: Bool {
+        totalPresentationAmount >= 0
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -281,6 +350,7 @@ struct TransactionTable: View {
                     }
                 }
             }
+            totalRow
         }
     }
 
@@ -301,6 +371,41 @@ struct TransactionTable: View {
         .padding(.vertical, 5)
         .background(Color.secondary.opacity(0.08))
         .frame(height: 36)
+    }
+
+    private var totalRow: some View {
+        HStack(spacing: 12) {
+            Text("Total")
+                .font(.callout.weight(.bold))
+                .frame(width: 104, alignment: .leading)
+            Color.clear.frame(width: 110)
+            Color.clear.frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
+            Text("\(transactions.count) transactions")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(WorthlineTheme.textSecondary)
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+            Text(totalQuantity == 0 ? "-" : totalQuantity.formatted(Formatters.number))
+                .font(.callout.weight(.bold))
+                .monospacedDigit()
+                .frame(width: 95, alignment: .trailing)
+            Text(averagePrice == 0 ? "-" : averagePrice.formatted(Formatters.currency))
+                .font(.callout.weight(.bold))
+                .monospacedDigit()
+                .frame(width: 105, alignment: .trailing)
+            Text(totalPresentationAmount, format: Formatters.currency)
+                .font(.callout.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(totalIsPositive ? WorthlineTheme.positive : WorthlineTheme.negative)
+                .frame(width: 120, alignment: .trailing)
+            if deleteAction != nil {
+                Color.clear.frame(width: 26)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) { Divider() }
+        .frame(height: 54)
     }
 
     private func label(_ text: String, alignment: Alignment = .trailing) -> some View {
