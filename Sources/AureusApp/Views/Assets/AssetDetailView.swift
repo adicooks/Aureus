@@ -239,7 +239,7 @@ struct AssetDetailView: View {
             if transactions.isEmpty {
                 EmptyStateView(
                     title: "No transactions yet",
-                    message: "Add buys, sells, dividends, deposits, or withdrawals for this asset.",
+                    message: "Add stock buys or sells for this asset.",
                     symbol: "arrow.left.arrow.right",
                     buttonTitle: "Add Transaction",
                     action: { showingTransactionEditor = true }

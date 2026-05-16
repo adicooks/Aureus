@@ -160,7 +160,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 SectionHeader(title: "Product Areas")
                 Label("Watchlist uses its own local SwiftData model for non-owned symbols.", systemImage: "eye")
-                Label("Transactions support buys, sells, dividends, deposits, withdrawals, interest, and adjustments.", systemImage: "arrow.left.arrow.right")
+                Label("Transactions support stock buys and sells.", systemImage: "arrow.left.arrow.right")
                 Label("Reports are generated from existing holdings, snapshots, and settings.", systemImage: "chart.bar.doc.horizontal")
             }
             .font(.callout)

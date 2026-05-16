@@ -5,19 +5,34 @@ enum TransactionFilter: String, CaseIterable, Hashable {
     case all = "All"
     case buy = "Buy"
     case sell = "Sell"
-    case dividend = "Dividend"
-    case deposit = "Deposit"
-    case withdrawal = "Withdrawal"
 
     func includes(_ kind: TransactionKind) -> Bool {
         switch self {
         case .all: true
         case .buy: kind == .buy
         case .sell: kind == .sell
-        case .dividend: kind == .dividend
-        case .deposit: kind == .deposit
-        case .withdrawal: kind == .withdrawal
         }
+    }
+}
+
+private struct CompletedStockTrade: Identifiable {
+    let holding: Holding
+    let buys: [Transaction]
+    let sells: [Transaction]
+
+    var id: UUID { holding.id }
+    var date: Date { sells.map(\.date).max() ?? buys.map(\.date).max() ?? holding.updatedAt }
+    var buyQuantity: Double { buys.reduce(0) { $0 + $1.quantity } }
+    var sellQuantity: Double { sells.reduce(0) { $0 + $1.quantity } }
+    var boughtAmount: Double { buys.reduce(0) { $0 + $1.grossAmount + $1.fees } }
+    var soldAmount: Double { sells.reduce(0) { $0 + $1.grossAmount - $1.fees } }
+    var averageBuyPrice: Double { buyQuantity > 0 ? boughtAmount / buyQuantity : 0 }
+    var averageSellPrice: Double { sellQuantity > 0 ? soldAmount / sellQuantity : 0 }
+    var realizedAmount: Double { soldAmount - averageBuyPrice * sellQuantity }
+    var isGain: Bool { realizedAmount >= 0 }
+
+    var description: String {
+        "Bought \(buyQuantity.formatted(Formatters.number)) @ \(averageBuyPrice.formatted(Formatters.currency)); sold \(sellQuantity.formatted(Formatters.number)) @ \(averageSellPrice.formatted(Formatters.currency))"
     }
 }
 
@@ -30,8 +45,28 @@ struct TransactionsView: View {
     @State private var showingEditor = false
     @State private var deleteCandidate: Transaction?
 
+    private var stockTransactions: [Transaction] {
+        transactions.filter { transaction in
+            (transaction.kind == .buy || transaction.kind == .sell)
+            && transaction.holding?.kind == .stock
+        }
+    }
+
+    private var completedStockTrades: [CompletedStockTrade] {
+        let grouped = Dictionary(grouping: stockTransactions) { $0.holding?.id }
+        return grouped.compactMap { _, transactions in
+            let buys = transactions.filter { $0.kind == .buy }.sorted { $0.date > $1.date }
+            let sells = transactions.filter { $0.kind == .sell }.sorted { $0.date > $1.date }
+            guard let holding = transactions.compactMap(\.holding).first, !buys.isEmpty, !sells.isEmpty else {
+                return nil
+            }
+            return CompletedStockTrade(holding: holding, buys: buys, sells: sells)
+        }
+        .sorted { $0.date > $1.date }
+    }
+
     private var filteredTransactions: [Transaction] {
-        var items = transactions.filter { filter.includes($0.kind) }
+        var items = stockTransactions.filter { filter.includes($0.kind) }
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !query.isEmpty {
             items = items.filter {
@@ -44,28 +79,50 @@ struct TransactionsView: View {
         return items
     }
 
+    private var filteredCompletedStockTrades: [CompletedStockTrade] {
+        var items = completedStockTrades
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty {
+            items = items.filter {
+                $0.holding.name.localizedCaseInsensitiveContains(query)
+                || $0.holding.ticker.localizedCaseInsensitiveContains(query)
+                || $0.description.localizedCaseInsensitiveContains(query)
+            }
+        }
+        return items
+    }
+
+    private var visibleRecordCount: Int {
+        switch filter {
+        case .all: filteredCompletedStockTrades.count
+        case .buy, .sell: filteredTransactions.count
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
             controls
 
             SectionCard(padding: 0) {
-                if transactions.isEmpty {
+                if stockTransactions.isEmpty {
                     EmptyStateView(
                         title: "No transactions yet",
-                        message: "Track buys, sells, dividends, deposits, and withdrawals from one clean ledger.",
+                        message: "Track stock buys and sells from one clean ledger.",
                         symbol: "arrow.left.arrow.right",
                         buttonTitle: "Add Transaction",
                         action: { showingEditor = true }
                     )
                     .frame(minHeight: 500)
-                } else if filteredTransactions.isEmpty {
+                } else if visibleRecordCount == 0 {
                     EmptyStateView(
                         title: "No matching transactions",
-                        message: "Adjust your search or filter to widen the ledger.",
+                        message: filter == .all ? "All shows stocks with both a buy and sell record." : "Adjust your search or filter to widen the ledger.",
                         symbol: "magnifyingglass"
                     )
                     .frame(minHeight: 460)
+                } else if filter == .all {
+                    CompletedStockTradeTable(trades: filteredCompletedStockTrades)
                 } else {
                     TransactionTable(
                         transactions: filteredTransactions,
@@ -103,7 +160,7 @@ struct TransactionsView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Transactions")
                     .font(.system(size: 30, weight: .semibold, design: .rounded))
-                Text("\(transactions.count) local records")
+                Text("\(visibleRecordCount) stock records")
                     .font(.callout)
                     .foregroundStyle(WorthlineTheme.textSecondary)
             }
@@ -124,6 +181,88 @@ struct TransactionsView: View {
             }
         }
         .padding(.horizontal, 28)
+    }
+}
+
+private struct CompletedStockTradeTable: View {
+    let trades: [CompletedStockTrade]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(trades) { trade in
+                        CompletedStockTradeRow(trade: trade)
+                        Divider().opacity(0.55)
+                    }
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            label("Sold", alignment: .leading).frame(width: 104, alignment: .leading)
+            label("Type", alignment: .leading).frame(width: 130, alignment: .leading)
+            label("Asset", alignment: .leading).frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
+            label("Details", alignment: .leading).frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
+            label("Shares").frame(width: 95, alignment: .trailing)
+            label("Buy Avg").frame(width: 105, alignment: .trailing)
+            label("Sell Avg").frame(width: 105, alignment: .trailing)
+            label("Gain/Loss").frame(width: 120, alignment: .trailing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 5)
+        .background(Color.secondary.opacity(0.08))
+        .frame(height: 36)
+    }
+
+    private func label(_ text: String, alignment: Alignment = .trailing) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(WorthlineTheme.textSecondary)
+            .frame(maxWidth: .infinity, alignment: alignment)
+    }
+}
+
+private struct CompletedStockTradeRow: View {
+    let trade: CompletedStockTrade
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(trade.date.formatted(Formatters.shortDate))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(width: 104, alignment: .leading)
+            Label("Bought & Sold", systemImage: "arrow.left.arrow.right.circle")
+                .foregroundStyle(trade.isGain ? WorthlineTheme.positive : WorthlineTheme.negative)
+                .frame(width: 130, alignment: .leading)
+            Text(trade.holding.displayTicker)
+                .fontWeight(.semibold)
+                .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
+            Text(trade.description)
+                .foregroundStyle(WorthlineTheme.textSecondary)
+                .lineLimit(1)
+                .frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
+            Text(trade.sellQuantity.formatted(Formatters.number))
+                .frame(width: 95, alignment: .trailing)
+            Text(trade.averageBuyPrice == 0 ? "-" : trade.averageBuyPrice.formatted(Formatters.currency))
+                .frame(width: 105, alignment: .trailing)
+            Text(trade.averageSellPrice == 0 ? "-" : trade.averageSellPrice.formatted(Formatters.currency))
+                .frame(width: 105, alignment: .trailing)
+            Text(trade.realizedAmount, format: Formatters.currency)
+                .foregroundStyle(trade.isGain ? WorthlineTheme.positive : WorthlineTheme.negative)
+                .fontWeight(.semibold)
+                .frame(width: 120, alignment: .trailing)
+        }
+        .font(.callout)
+        .monospacedDigit()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(hovering ? WorthlineTheme.accent.opacity(0.08) : Color.clear)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -243,6 +382,8 @@ struct TransactionEditorView: View {
     @State private var validationMessage: String?
     @FocusState private var focusedField: Field?
 
+    private let transactionKinds: [TransactionKind] = [.buy, .sell]
+
     private enum Field: Hashable {
         case quantity
         case note
@@ -262,7 +403,7 @@ struct TransactionEditorView: View {
                     SectionCard {
                         VStack(alignment: .leading, spacing: 14) {
                             Picker("Type", selection: $kind) {
-                                ForEach(TransactionKind.allCases) { kind in
+                                ForEach(transactionKinds) { kind in
                                     Label(kind.title, systemImage: kind.symbol).tag(kind)
                                 }
                             }
@@ -284,7 +425,7 @@ struct TransactionEditorView: View {
                             TextField("Quantity", value: $quantity, format: .number.precision(.fractionLength(0...6)))
                                 .aureusFieldStyle()
                                 .focused($focusedField, equals: .quantity)
-                            TextField(kind == .deposit || kind == .withdrawal ? "Amount" : "Price", value: $price, format: .number.precision(.fractionLength(0...2)))
+                            TextField("Price", value: $price, format: .number.precision(.fractionLength(0...2)))
                                 .aureusFieldStyle()
                             TextField("Fees", value: $fees, format: .number.precision(.fractionLength(0...2)))
                                 .aureusFieldStyle()
