@@ -35,6 +35,61 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(series.last?.totalValue ?? 0, 300, accuracy: 0.001)
     }
 
+    func testNetWorthHistoryIncludesRecentPurchaseDate() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let purchaseDate = now.addingTimeInterval(-3_600)
+        let stock = Holding(kind: .stock, name: "Example", ticker: "EXM", quantity: 10, purchaseDate: purchaseDate, purchasePrice: 20, latestPrice: 30)
+
+        let series = PortfolioHistoryService.series(holdings: [stock], snapshots: [], range: .oneYear, now: now)
+
+        XCTAssertGreaterThanOrEqual(series.count, 2)
+        XCTAssertTrue(series.contains { $0.date == purchaseDate })
+        XCTAssertEqual(series.last?.date, now)
+    }
+
+    func testNetWorthHistoryUsesTransactionDatesAndQuantities() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let firstBuyDate = now.addingTimeInterval(-86_400 * 90)
+        let secondBuyDate = now.addingTimeInterval(-86_400 * 30)
+        let stock = Holding(kind: .stock, name: "Example", ticker: "EXM", quantity: 15, purchaseDate: firstBuyDate, purchasePrice: 15, latestPrice: 30)
+        let firstBuy = Transaction(kind: .buy, date: firstBuyDate, quantity: 10, price: 10, holding: stock)
+        let secondBuy = Transaction(kind: .buy, date: secondBuyDate, quantity: 5, price: 20, holding: stock)
+
+        let series = PortfolioHistoryService.series(
+            holdings: [stock],
+            snapshots: [],
+            range: .all,
+            transactions: [firstBuy, secondBuy],
+            now: now
+        )
+
+        XCTAssertEqual(series.first(where: { $0.date == firstBuyDate })?.totalValue ?? 0, 100, accuracy: 0.001)
+        XCTAssertEqual(series.first(where: { $0.date == secondBuyDate })?.totalValue ?? 0, 300, accuracy: 0.001)
+        XCTAssertEqual(series.last?.totalValue ?? 0, 450, accuracy: 0.001)
+    }
+
+    func testSameDaySnapshotsDoNotHideTransactionHistory() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let buyDate = now.addingTimeInterval(-86_400 * 30)
+        let stock = Holding(kind: .stock, name: "Example", ticker: "EXM", quantity: 10, purchaseDate: buyDate, purchasePrice: 20, latestPrice: 30)
+        let buy = Transaction(kind: .buy, date: buyDate, quantity: 10, price: 20, holding: stock)
+        let snapshots = [
+            NetWorthSnapshot(date: now.addingTimeInterval(-600), totalValue: 300, investedAmount: 200, unrealizedGainLoss: 100),
+            NetWorthSnapshot(date: now, totalValue: 300, investedAmount: 200, unrealizedGainLoss: 100)
+        ]
+
+        let series = PortfolioHistoryService.series(
+            holdings: [stock],
+            snapshots: snapshots,
+            range: .all,
+            transactions: [buy],
+            now: now
+        )
+
+        XCTAssertTrue(series.contains { $0.date == buyDate })
+        XCTAssertEqual(series.first(where: { $0.date == buyDate })?.totalValue ?? 0, 200, accuracy: 0.001)
+    }
+
     func testOneDayNetWorthHistoryUsesLocalDayStartAndPreviousClose() {
         let calendar = Calendar.current
         let now = Date(timeIntervalSince1970: 1_700_000_000)

@@ -75,6 +75,21 @@ struct DashboardView: View {
             .joined(separator: "|")
     }
 
+    private var transactionsVersion: String {
+        transactions.map {
+            [
+                $0.id.uuidString,
+                $0.kindRaw,
+                "\($0.date.timeIntervalSince1970)",
+                "\($0.quantity)",
+                "\($0.price)",
+                "\($0.fees)",
+                $0.holding?.id.uuidString ?? ""
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -105,6 +120,7 @@ struct DashboardView: View {
         .onChange(of: range) { _, _ in scheduleChartRefresh() }
         .onChange(of: holdingsVersion) { _, _ in scheduleChartRefresh() }
         .onChange(of: snapshotsVersion) { _, _ in scheduleChartRefresh() }
+        .onChange(of: transactionsVersion) { _, _ in scheduleChartRefresh() }
     }
 
     private var header: some View {
@@ -239,8 +255,28 @@ struct DashboardView: View {
             guard !Task.isCancelled else { return }
             let now = Date()
             chartNow = now
-            historySeries = PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, now: now)
+            historySeries = dashboardHistorySeries(now: now)
         }
+    }
+
+    private func dashboardHistorySeries(now: Date) -> [NetWorthHistoryPoint] {
+        let series = PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, transactions: transactions, now: now)
+        guard series.count < 2, summary.totalNetWorth > 0 else { return series }
+        let startDate = range.startDate(relativeTo: now) ?? now.addingTimeInterval(-86_400)
+        return [
+            NetWorthHistoryPoint(
+                date: min(startDate, now.addingTimeInterval(-1)),
+                totalValue: summary.totalNetWorth,
+                investedAmount: summary.totalInvested,
+                unrealizedGainLoss: summary.unrealizedGainLoss
+            ),
+            NetWorthHistoryPoint(
+                date: now,
+                totalValue: summary.totalNetWorth,
+                investedAmount: summary.totalInvested,
+                unrealizedGainLoss: summary.unrealizedGainLoss
+            )
+        ]
     }
 }
 

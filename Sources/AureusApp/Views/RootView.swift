@@ -49,9 +49,11 @@ struct RootView: View {
     @State private var isRefreshing = false
     @State private var message: String?
     @State private var errorMessage: String?
+    @State private var lastMarketAutoRefresh: Date?
 
     private let quoteService = YahooFinanceService()
     private let marketAutoRefreshInterval: TimeInterval = 900
+    private let marketAutoRefreshCheckInterval: TimeInterval = 60
 
     var body: some View {
         HStack(spacing: 0) {
@@ -92,6 +94,8 @@ struct RootView: View {
             seedSampleDataIfRequested()
             backfillInitialTransactionsIfNeeded()
             SnapshotService.saveDailySnapshotIfNeeded(holdings: holdings, snapshots: snapshots, context: modelContext)
+        }
+        .task {
             await runMarketAutoRefreshLoop()
         }
         .onReceive(NotificationCenter.default.publisher(for: .aureusAddAsset)) { _ in
@@ -168,11 +172,19 @@ struct RootView: View {
     @MainActor
     private func runMarketAutoRefreshLoop() async {
         while !Task.isCancelled {
-            if isRegularMarketOpen {
+            try? await Task.sleep(for: .seconds(marketAutoRefreshCheckInterval))
+            guard !Task.isCancelled else { return }
+            if isRegularMarketOpen, shouldRunMarketAutoRefresh {
                 await refreshPrices(showStatus: false)
+                lastMarketAutoRefresh = .now
             }
-            try? await Task.sleep(for: .seconds(marketAutoRefreshInterval))
         }
+    }
+
+    private var shouldRunMarketAutoRefresh: Bool {
+        guard !isRefreshing else { return false }
+        guard let lastMarketAutoRefresh else { return true }
+        return lastMarketAutoRefresh.timeIntervalSinceNow <= -marketAutoRefreshInterval
     }
 
     private var isRegularMarketOpen: Bool {
