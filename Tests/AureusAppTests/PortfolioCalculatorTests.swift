@@ -112,6 +112,42 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(series.count, 52)
     }
 
+    func testOneYearDisplaySeriesIsCappedForRendering() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let series = (0..<365).map { offset in
+            NetWorthHistoryPoint(
+                date: now.addingTimeInterval(Double(offset) * 86_400),
+                totalValue: Double(offset),
+                investedAmount: Double(offset),
+                unrealizedGainLoss: 0
+            )
+        }
+
+        let displaySeries = PortfolioHistoryService.displaySeries(series, for: .oneYear)
+
+        XCTAssertLessThanOrEqual(displaySeries.count, 120)
+        XCTAssertEqual(displaySeries.first?.date, series.first?.date)
+        XCTAssertEqual(displaySeries.last?.date, series.last?.date)
+    }
+
+    func testAllDisplaySeriesIsCappedForRendering() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let series = (0..<800).map { offset in
+            NetWorthHistoryPoint(
+                date: now.addingTimeInterval(Double(offset) * 86_400),
+                totalValue: Double(offset),
+                investedAmount: Double(offset),
+                unrealizedGainLoss: 0
+            )
+        }
+
+        let displaySeries = PortfolioHistoryService.displaySeries(series, for: .all)
+
+        XCTAssertLessThanOrEqual(displaySeries.count, 260)
+        XCTAssertEqual(displaySeries.first?.date, series.first?.date)
+        XCTAssertEqual(displaySeries.last?.date, series.last?.date)
+    }
+
     func testOneDayNetWorthHistoryUsesLocalDayStartAndPreviousClose() {
         let calendar = Calendar.current
         let now = Date(timeIntervalSince1970: 1_700_000_000)

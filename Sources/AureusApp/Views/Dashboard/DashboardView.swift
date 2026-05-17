@@ -5,7 +5,6 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Holding.name) private var holdings: [Holding]
-    @Query(sort: \NetWorthSnapshot.date) private var snapshots: [NetWorthSnapshot]
     @Query(sort: \Transaction.date, order: .reverse) private var transactions: [Transaction]
     @Query(sort: \ChartSeriesCache.updatedAt, order: .reverse) private var chartCaches: [ChartSeriesCache]
 
@@ -74,11 +73,6 @@ struct DashboardView: View {
         .joined(separator: "|")
     }
 
-    private var snapshotsVersion: String {
-        snapshots.map { "\($0.id.uuidString):\($0.date.timeIntervalSince1970):\($0.totalValue)" }
-            .joined(separator: "|")
-    }
-
     private var transactionsVersion: String {
         transactions.map {
             [
@@ -95,7 +89,7 @@ struct DashboardView: View {
     }
 
     private var chartDataVersion: String {
-        [holdingsVersion, snapshotsVersion, transactionsVersion].joined(separator: "||")
+        [holdingsVersion, transactionsVersion].joined(separator: "||")
     }
 
     var body: some View {
@@ -137,7 +131,6 @@ struct DashboardView: View {
             scheduleChartRefresh()
         }
         .onChange(of: holdingsVersion) { _, _ in scheduleChartRefresh(prewarmAll: true) }
-        .onChange(of: snapshotsVersion) { _, _ in scheduleChartRefresh(prewarmAll: true) }
         .onChange(of: transactionsVersion) { _, _ in scheduleChartRefresh(prewarmAll: true) }
     }
 
@@ -177,7 +170,7 @@ struct DashboardView: View {
                     if historySeries.isEmpty {
                         EmptyStateView(
                             title: "No chart data",
-                            message: "Worthline will draw this timeline after the first snapshot is saved.",
+                            message: "Refresh prices to cache Yahoo Finance history for market-priced assets.",
                             symbol: "chart.xyaxis.line"
                         )
                         .frame(height: 230)
@@ -199,12 +192,14 @@ struct DashboardView: View {
                             .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                             .foregroundStyle(WorthlineTheme.positive)
 
-                            PointMark(
-                                x: .value("Date", point.date),
-                                y: .value("Net Worth", point.totalValue)
-                            )
-                            .symbolSize(historySeries.count == 1 ? 42 : 10)
-                            .foregroundStyle(WorthlineTheme.positive)
+                            if historySeries.count == 1 {
+                                PointMark(
+                                    x: .value("Date", point.date),
+                                    y: .value("Net Worth", point.totalValue)
+                                )
+                                .symbolSize(42)
+                                .foregroundStyle(WorthlineTheme.positive)
+                            }
 
                             if let selectedHistoryPoint, selectedHistoryPoint.id == point.id {
                                 RuleMark(x: .value("Selected Date", selectedHistoryPoint.date))
@@ -314,11 +309,7 @@ struct DashboardView: View {
             if prewarmAll {
                 warmPortfolioHistoryCache(now: now, dataVersion: dataVersion)
             } else if PortfolioHistoryService.cachedSeries(for: targetRange, dataVersion: dataVersion, caches: chartCaches) == nil {
-                let series = dashboardHistorySeries(for: targetRange, now: now)
-                PortfolioHistoryService.saveCachedSeries(series, for: targetRange, dataVersion: dataVersion, caches: chartCaches, context: modelContext)
-                if range == targetRange {
-                    historySeries = series
-                }
+                warmPortfolioHistoryCache(now: now, dataVersion: dataVersion, ranges: [targetRange])
             }
         }
     }
@@ -328,10 +319,12 @@ struct DashboardView: View {
     }
 
     private func dashboardHistorySeries(for range: TimeRange, now: Date) -> [NetWorthHistoryPoint] {
-        let series = PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, transactions: transactions, now: now)
-        guard series.count < 2, summary.totalNetWorth > 0 else { return series }
+        let series = PortfolioHistoryService.series(holdings: holdings, snapshots: [], range: range, transactions: transactions, now: now)
+        guard series.count < 2, summary.totalNetWorth > 0 else {
+            return PortfolioHistoryService.displaySeries(series, for: range)
+        }
         let startDate = range.startDate(relativeTo: now) ?? now.addingTimeInterval(-86_400)
-        return [
+        return PortfolioHistoryService.displaySeries([
             NetWorthHistoryPoint(
                 date: min(startDate, now.addingTimeInterval(-1)),
                 totalValue: summary.totalNetWorth,
@@ -344,7 +337,7 @@ struct DashboardView: View {
                 investedAmount: summary.totalInvested,
                 unrealizedGainLoss: summary.unrealizedGainLoss
             )
-        ]
+        ], for: range)
     }
 
     private func loadCachedHistorySeries() {
@@ -353,10 +346,10 @@ struct DashboardView: View {
         }
     }
 
-    private func warmPortfolioHistoryCache(now: Date, dataVersion: String) {
+    private func warmPortfolioHistoryCache(now: Date, dataVersion: String, ranges: [TimeRange] = TimeRange.allCases) {
         cacheWarmupTask?.cancel()
         cacheWarmupTask = Task { @MainActor in
-            for rangeToWarm in TimeRange.allCases {
+            for rangeToWarm in ranges {
                 guard !Task.isCancelled else { return }
                 let series = dashboardHistorySeries(for: rangeToWarm, now: now)
                 PortfolioHistoryService.saveCachedSeries(series, for: rangeToWarm, dataVersion: dataVersion, caches: chartCaches, context: modelContext)

@@ -55,7 +55,7 @@ enum PortfolioHistoryService {
         guard let payload = try? JSONDecoder().decode(ChartSeriesCachePayload.self, from: cache.payloadData) else {
             return nil
         }
-        return payload.points.map(\.historyPoint).sorted { $0.date < $1.date }
+        return displaySeries(payload.points.map(\.historyPoint), for: range)
     }
 
     @MainActor
@@ -67,7 +67,7 @@ enum PortfolioHistoryService {
         context: ModelContext
     ) {
         let key = cacheKey(for: range)
-        let payload = ChartSeriesCachePayload(points: series.map(CachedNetWorthHistoryPoint.init))
+        let payload = ChartSeriesCachePayload(points: displaySeries(series, for: range).map(CachedNetWorthHistoryPoint.init))
         guard let payloadData = try? JSONEncoder().encode(payload) else { return }
 
         var descriptor = FetchDescriptor<ChartSeriesCache>(
@@ -95,6 +95,35 @@ enum PortfolioHistoryService {
 
     static func cacheKey(for range: TimeRange) -> String {
         "\(cacheNamespace):\(range.rawValue)"
+    }
+
+    static func displaySeries(_ series: [NetWorthHistoryPoint], for range: TimeRange) -> [NetWorthHistoryPoint] {
+        guard let limit = displayPointLimit(for: range), series.count > limit else {
+            return series.sorted { $0.date < $1.date }
+        }
+
+        let sorted = series.sorted { $0.date < $1.date }
+        let lastIndex = sorted.count - 1
+        let sampled = (0..<limit).map { index in
+            let sourceIndex = Int((Double(index) * Double(lastIndex) / Double(limit - 1)).rounded())
+            return sorted[min(sourceIndex, lastIndex)]
+        }
+        return sampled.reduce(into: [NetWorthHistoryPoint]()) { result, point in
+            if result.last?.date != point.date {
+                result.append(point)
+            }
+        }
+    }
+
+    private static func displayPointLimit(for range: TimeRange) -> Int? {
+        switch range {
+        case .oneYear:
+            return 120
+        case .all:
+            return 260
+        case .oneDay, .oneWeek, .oneMonth, .threeMonths:
+            return nil
+        }
     }
 
     private static func hasMultipleSnapshotDays(_ series: [NetWorthHistoryPoint], calendar: Calendar = .current) -> Bool {

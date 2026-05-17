@@ -304,11 +304,7 @@ struct PerformanceView: View {
             if prewarmAll {
                 warmPortfolioHistoryCache(now: .now, dataVersion: dataVersion)
             } else if PortfolioHistoryService.cachedSeries(for: targetRange, dataVersion: dataVersion, caches: chartCaches) == nil {
-                let series = performanceHistorySeries(for: targetRange, now: .now)
-                PortfolioHistoryService.saveCachedSeries(series, for: targetRange, dataVersion: dataVersion, caches: chartCaches, context: modelContext)
-                if range == targetRange {
-                    historySeries = series
-                }
+                warmPortfolioHistoryCache(now: .now, dataVersion: dataVersion, ranges: [targetRange])
             }
             isPreparing = false
         }
@@ -323,13 +319,16 @@ struct PerformanceView: View {
     }
 
     private func performanceHistorySeries(for range: TimeRange, now: Date) -> [NetWorthHistoryPoint] {
-        PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, transactions: transactions, now: now)
+        PortfolioHistoryService.displaySeries(
+            PortfolioHistoryService.series(holdings: holdings, snapshots: snapshots, range: range, transactions: transactions, now: now),
+            for: range
+        )
     }
 
-    private func warmPortfolioHistoryCache(now: Date, dataVersion: String) {
+    private func warmPortfolioHistoryCache(now: Date, dataVersion: String, ranges: [TimeRange] = TimeRange.allCases) {
         cacheWarmupTask?.cancel()
         cacheWarmupTask = Task { @MainActor in
-            for rangeToWarm in TimeRange.allCases {
+            for rangeToWarm in ranges {
                 guard !Task.isCancelled else { return }
                 let series = performanceHistorySeries(for: rangeToWarm, now: now)
                 PortfolioHistoryService.saveCachedSeries(series, for: rangeToWarm, dataVersion: dataVersion, caches: chartCaches, context: modelContext)
